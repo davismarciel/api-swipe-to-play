@@ -1,5 +1,6 @@
 services:
     app:
+        container_name: stp_api
         build:
             context: .
             dockerfile: Dockerfile
@@ -13,6 +14,7 @@ services:
             - laravel
 
     nginx:
+        container_name: stp_nginx
         image: nginx:alpine
         restart: unless-stopped
         ports:
@@ -24,6 +26,7 @@ services:
             - laravel
 
     db:
+        container_name: stp_db
         image: postgres:16-alpine
         restart: unless-stopped
         environment:
