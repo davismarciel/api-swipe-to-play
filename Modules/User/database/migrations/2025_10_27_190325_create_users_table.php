@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('avatar')->nullable();
             $table->string('provider')->default('google');
             $table->rememberToken();
+            $table->softDeletes();
             $table->timestamps();
         });
     }
