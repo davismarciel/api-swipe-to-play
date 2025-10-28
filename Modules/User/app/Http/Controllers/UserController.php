@@ -3,57 +3,38 @@
 namespace Modules\User\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use Modules\User\Models\User;
+use Illuminate\Http\JsonResponse;
 
 class UserController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(): JsonResponse
     {
-        //
-
-        return response()->json([]);
+        $users = User::all();
+        return response()->json([
+            'success' => true,
+            'users' => $users
+        ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function show($id): JsonResponse
     {
-        //
+        $user = User::findOrFail($id);
 
-        return response()->json([]);
+        return response()->json([
+            'success' => true,
+            'user' => $user
+        ]);
     }
 
-    /**
-     * Show the specified resource.
-     */
-    public function show($id)
+    public function destroy($id): JsonResponse
     {
-        //
-
-        return response()->json([]);
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, $id)
-    {
-        //
-
-        return response()->json([]);
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy($id)
-    {
-        //
-
-        return response()->json([]);
+        $user = User::findOrFail($id);
+        $user->delete();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'User deleted successfully'
+        ]);
     }
 }
