@@ -3,14 +3,15 @@
 namespace Modules\User\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use Modules\User\Models\User;
 use Illuminate\Http\JsonResponse;
+use Modules\User\Models\User;
+use Modules\User\Http\Resources\UserResource;
 
 class UserController extends Controller
 {
     public function test(): JsonResponse
     {
-        return response()->json([
+        return $this->successResponse([
             'status' => 'success',
             'message' => 'API is working!',
             'timestamp' => now(),
@@ -22,20 +23,20 @@ class UserController extends Controller
     public function index(): JsonResponse
     {
         $users = User::all();
-        return $this->successResponse(['users' => $users]);
+        return $this->successResponse(UserResource::collection($users));
     }
 
     public function show($id): JsonResponse
     {
         $user = User::findOrFail($id);
-        return $this->successResponse(['user' => $user]);
+        return $this->successResponse(new UserResource($user));
     }
 
     public function destroy($id): JsonResponse
     {
         $user = User::findOrFail($id);
         $user->delete();
-        
+
         return $this->successResponse(null, 'User deleted successfully');
     }
 }
