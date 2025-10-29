@@ -8,23 +8,27 @@ use Illuminate\Http\JsonResponse;
 
 class UserController extends Controller
 {
+    public function test(): JsonResponse
+    {
+        return response()->json([
+            'status' => 'success',
+            'message' => 'API is working!',
+            'timestamp' => now(),
+            'server_ip' => request()->server('SERVER_ADDR'),
+            'client_ip' => request()->ip()
+        ]);
+    }
+
     public function index(): JsonResponse
     {
         $users = User::all();
-        return response()->json([
-            'success' => true,
-            'users' => $users
-        ]);
+        return $this->successResponse(['users' => $users]);
     }
 
     public function show($id): JsonResponse
     {
         $user = User::findOrFail($id);
-
-        return response()->json([
-            'success' => true,
-            'user' => $user
-        ]);
+        return $this->successResponse(['user' => $user]);
     }
 
     public function destroy($id): JsonResponse
@@ -32,9 +36,6 @@ class UserController extends Controller
         $user = User::findOrFail($id);
         $user->delete();
         
-        return response()->json([
-            'success' => true,
-            'message' => 'User deleted successfully'
-        ]);
+        return $this->successResponse(null, 'User deleted successfully');
     }
 }
