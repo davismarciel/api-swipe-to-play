@@ -1,5 +1,6 @@
 {
     "User": true,
     "Game": true,
-    "Auth": true
+    "Auth": true,
+    "Recommendation": true
 }
