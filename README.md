@@ -21,7 +21,7 @@ O **STP** (Show Me a Game) é um aplicativo voltado para recomendações persona
 - **PostgreSQL** - Banco de dados principal
 - **Redis** - Cache e sessões
 - **JWT Auth** - Autenticação segura
-- **Laravel Socialite** - Integração Google OAuth
+- **Google API Client** - Integração Google OAuth
 - **Steam API** - Dados oficiais dos jogos
 - **Scramble** - Documentação automática da API
 - **Docker** - Containerização completa
