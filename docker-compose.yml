@@ -44,7 +44,7 @@ services:
         image: dpage/pgadmin4
         restart: unless-stopped
         ports:
-            - "8080:80"
+            - "8008:80"
         environment:
             PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
             PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
@@ -53,6 +53,8 @@ services:
 
     redis:
         image: redis:latest
+        ports:
+            - "6379:6379"
         networks:
             - laravel
 
