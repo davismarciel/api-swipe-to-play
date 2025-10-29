@@ -1,0 +1,44 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('game_interactions', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('game_id')->constrained()->cascadeOnDelete();
+
+            // Tipos de interação
+            $table->enum('type', ['view', 'like', 'dislike', 'favorite', 'skip']); // Tipo de interação
+
+            // Metadados da interação
+            $table->integer('interaction_score')->default(0); // Pontuação calculada da interação
+            $table->timestamp('interacted_at')->useCurrent(); // Quando aconteceu
+
+            $table->timestamps();
+
+            // Índices para performance
+            $table->index('user_id');
+            $table->index('game_id');
+            $table->index(['user_id', 'game_id']);
+            $table->index(['user_id', 'type']);
+            $table->index('interacted_at');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('game_interactions');
+    }
+};
