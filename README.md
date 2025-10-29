@@ -73,9 +73,6 @@ GOOGLE_CLIENT_ID=seu-google-client-id
 GOOGLE_CLIENT_SECRET=seu-google-client-secret
 GOOGLE_REDIRECT_URL=http://localhost:8000/api/auth/google/callback
 
-# Steam API
-STEAM_API_KEY=sua-steam-api-key
-STEAM_API_URL=https://store.steampowered.com/api
 ```
 
 ### 3. Execute com Docker
@@ -109,31 +106,23 @@ docker-compose exec app php artisan db:seed
 ## 📚 Endpoints Disponíveis
 
 ### Autenticação
-- `POST /api/auth/login` - Login de usuário
-- `POST /api/auth/register` - Registro de novo usuário
-- `POST /api/auth/logout` - Logout do usuário
-- `GET /api/auth/google` - Login com Google OAuth
-- `GET /api/auth/google/callback` - Callback do Google OAuth
+- `POST /api/v1/auth/login` - Login de usuário (requer id_token do Google)
+- `POST /api/v1/auth/logout` - Logout do usuário (requer autenticação JWT)
+- `POST /api/v1/auth/refresh` - Renovar token JWT (requer autenticação JWT)
+- `GET /api/v1/auth/me` - Obter dados do usuário logado (requer autenticação JWT)
 
-### Usuários e Perfil
+### Usuários
 - `GET /api/v1/users` - Listar usuários
+- `POST /api/v1/users` - Criar novo usuário
 - `GET /api/v1/users/{id}` - Buscar usuário específico
-- `PUT /api/v1/users/{id}` - Atualizar perfil do usuário
+- `PUT /api/v1/users/{id}` - Atualizar usuário
+- `PATCH /api/v1/users/{id}` - Atualizar usuário (parcial)
 - `DELETE /api/v1/users/{id}` - Deletar usuário
-- `GET /api/v1/users/{id}/preferences` - Obter preferências do usuário
-- `PUT /api/v1/users/{id}/preferences` - Atualizar preferências de jogos
-
-### Jogos e Recomendações
-- `GET /api/v1/games` - Listar jogos recomendados
-- `GET /api/v1/games/{id}` - Obter detalhes de um jogo
-- `POST /api/v1/games/{id}/like` - Curtir um jogo
-- `POST /api/v1/games/{id}/dislike` - Descurtir um jogo
-- `POST /api/v1/games/{id}/favorite` - Favoritar um jogo
-- `GET /api/v1/games/search` - Buscar jogos por critérios
-- `GET /api/v1/games/similar/{id}` - Obter jogos similares
 
 ### Sistema
 - `GET /api/v1/test` - Teste de conectividade da API
+- `GET /docs/api` - Documentação interativa da API
+- `GET /docs/api.json` - Documentação da API em formato JSON
 
 ## 🧪 Testando a API
 
@@ -143,55 +132,46 @@ docker-compose exec app php artisan db:seed
 curl http://localhost:8000/api/v1/test
 ```
 
-### Login de usuário
+### Login de usuário (Google OAuth)
 
 ```bash
-curl -X POST http://localhost:8000/api/auth/login \
+curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "usuario@exemplo.com",
-    "password": "senha123"
+    "id_token": "GOOGLE_ID_TOKEN_AQUI"
   }'
 ```
 
-### Obter jogos recomendados
+### Obter dados do usuário logado
 
 ```bash
-curl -X GET http://localhost:8000/api/v1/games \
+curl -X GET http://localhost:8000/api/v1/auth/me \
   -H "Authorization: Bearer SEU_JWT_TOKEN" \
   -H "Content-Type: application/json"
 ```
 
-### Curtir um jogo
+### Listar usuários
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/games/730/like \
+curl -X GET http://localhost:8000/api/v1/users \
   -H "Authorization: Bearer SEU_JWT_TOKEN" \
   -H "Content-Type: application/json"
 ```
 
-### Atualizar preferências do usuário
+### Renovar token JWT
 
 ```bash
-curl -X PUT http://localhost:8000/api/v1/users/1/preferences \
+curl -X POST http://localhost:8000/api/v1/auth/refresh \
   -H "Authorization: Bearer SEU_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "platforms": {
-      "windows": true,
-      "mac": false,
-      "linux": true
-    },
-    "genres": ["Action", "RPG", "Indie"],
-    "categories": ["Multi-player", "Co-op"],
-    "play_style": ["Competitive", "Story-driven"],
-    "monetization": {
-      "free_to_play": true,
-      "no_microtransactions": false,
-      "time_spenter": "casual",
-      "stress_taker": false
-    }
-  }'
+  -H "Content-Type: application/json"
+```
+
+### Logout
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/logout \
+  -H "Authorization: Bearer SEU_JWT_TOKEN" \
+  -H "Content-Type: application/json"
 ```
 
 ## 🏗️ Estrutura do Projeto
