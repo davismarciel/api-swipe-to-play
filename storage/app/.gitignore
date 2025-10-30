@@ -2,3 +2,5 @@
 !private/
 !public/
 !.gitignore
+!seeds/games_seed.sql
+!seeds/
