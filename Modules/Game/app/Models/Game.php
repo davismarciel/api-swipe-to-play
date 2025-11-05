@@ -25,11 +25,13 @@ class Game extends Model
         'is_free',
         'have_dlc',
         'icon',
+        'cover',
         'supported_languages',
         'release_date',
         'coming_soon',
         'recommendations',
         'achievements_count',
+        'achievements_highlighted',
         'positive_reviews',
         'negative_reviews',
         'total_reviews',
@@ -51,6 +53,7 @@ class Game extends Model
         'positive_ratio' => 'decimal:3',
         'supported_languages' => 'array',
         'content_descriptors' => 'array',
+        'achievements_highlighted' => 'array',
         'is_active' => 'boolean',
     ];
 
