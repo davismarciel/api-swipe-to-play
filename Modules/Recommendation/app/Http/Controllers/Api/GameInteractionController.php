@@ -14,82 +14,108 @@ class GameInteractionController extends Controller
         private RecommendationEngineInterface $recommendationEngine
     ) {}
 
+    /**
+     * Registra uma interação de "like" com um jogo
+     *
+     * @param Request $request
+     * @param int $gameId ID do jogo
+     * @return JsonResponse
+     */
     public function like(Request $request, int $gameId): JsonResponse
     {
-        $user = $request->user();
-        $game = \Modules\Game\Models\Game::findOrFail($gameId);
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return $this->errorResponse('User not authenticated', 401);
+            }
+            
+            $game = \Modules\Game\Models\Game::findOrFail($gameId);
 
-        $interaction = $this->recommendationEngine->recordInteraction($user, $game, 'like');
+            $interaction = $this->recommendationEngine->recordInteraction($user, $game, 'like');
 
-        return $this->createdResponse(new GameInteractionResource($interaction), 'Game liked successfully');
+            return $this->createdResponse(new GameInteractionResource($interaction), 'Game liked successfully');
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return $this->errorResponse('Game not found', 404);
+        } catch (\Exception $e) {
+            \Log::error('Error recording like interaction', [
+                'user_id' => $request->user()?->id,
+                'game_id' => $gameId,
+                'error' => $e->getMessage()
+            ]);
+            
+            return $this->errorResponse(
+                'Failed to record interaction. Please try again later.',
+                500
+            );
+        }
     }
 
+    /**
+     * Registra uma interação de "dislike" com um jogo
+     */
     public function dislike(Request $request, int $gameId): JsonResponse
     {
-        $user = $request->user();
-        $game = \Modules\Game\Models\Game::findOrFail($gameId);
-
-        $interaction = $this->recommendationEngine->recordInteraction($user, $game, 'dislike');
-
-        return $this->createdResponse(new GameInteractionResource($interaction), 'Game disliked successfully');
+        return $this->recordInteraction($request, $gameId, 'dislike', 'Game disliked successfully');
     }
 
+    /**
+     * Adiciona um jogo aos favoritos
+     */
     public function favorite(Request $request, int $gameId): JsonResponse
     {
-        $user = $request->user();
-        $game = \Modules\Game\Models\Game::findOrFail($gameId);
-
-        $interaction = $this->recommendationEngine->recordInteraction($user, $game, 'favorite');
-
-        return $this->createdResponse(new GameInteractionResource($interaction), 'Game added to favorites');
+        return $this->recordInteraction($request, $gameId, 'favorite', 'Game added to favorites');
     }
 
+    /**
+     * Registra uma visualização de jogo
+     */
     public function view(Request $request, int $gameId): JsonResponse
     {
-        $user = $request->user();
-        $game = \Modules\Game\Models\Game::findOrFail($gameId);
-
-        $interaction = $this->recommendationEngine->recordInteraction($user, $game, 'view');
-
-        return $this->createdResponse(new GameInteractionResource($interaction), 'Game view recorded');
+        return $this->recordInteraction($request, $gameId, 'view', 'Game view recorded');
     }
 
+    /**
+     * Registra que o usuário pulou um jogo
+     */
     public function skip(Request $request, int $gameId): JsonResponse
     {
-        $user = $request->user();
-        $game = \Modules\Game\Models\Game::findOrFail($gameId);
-
-        $interaction = $this->recommendationEngine->recordInteraction($user, $game, 'skip');
-
-        return $this->createdResponse(new GameInteractionResource($interaction), 'Game skipped');
+        return $this->recordInteraction($request, $gameId, 'skip', 'Game skipped');
     }
-
-    public function history(Request $request): JsonResponse
+    
+    /**
+     * Método auxiliar para registrar interações
+     */
+    private function recordInteraction(Request $request, int $gameId, string $type, string $message): JsonResponse
     {
-        $request->validate([
-            'limit' => 'sometimes|integer|min:1|max:100',
-        ]);
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return $this->errorResponse('User not authenticated', 401);
+            }
+            
+            $game = \Modules\Game\Models\Game::findOrFail($gameId);
 
-        $user = $request->user();
-        $limit = $request->input('limit', 20);
+            $interaction = $this->recommendationEngine->recordInteraction($user, $game, $type);
 
-        $history = $this->recommendationEngine->getUserInteractionHistory($user, $limit);
-
-        return $this->successResponse([
-            'history' => GameInteractionResource::collection($history),
-            'count' => $history->count(),
-            'limit' => $limit,
-        ]);
-    }
-
-    public function favorites(Request $request): JsonResponse
-    {
-        $user = $request->user();
-        $favorites = $this->recommendationEngine->getUserFavorites($user);
-
-        return $this->successResponse([
-            'favorites' => \Modules\Game\Http\Resources\GameResource::collection($favorites),
-            'count' => $favorites->count(),
-        ]);
+            return $this->createdResponse(new GameInteractionResource($interaction), $message);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return $this->errorResponse('Game not found', 404);
+        } catch (\Exception $e) {
+            \Log::error('Error recording interaction', [
+                'user_id' => $request->user()?->id,
+                'game_id' => $gameId,
+                'type' => $type,
+                'error' => $e->getMessage()
+            ]);
+            
+            return $this->errorResponse(
+                'Failed to record interaction. Please try again later.',
+                500
+            );
+        }
     }
 }
