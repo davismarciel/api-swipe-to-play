@@ -127,16 +127,24 @@ docker-compose exec app php artisan db:seed
 ## 🎮 Funcionalidades Principais
 
 ### Sistema de Recomendação
-- Algoritmo baseado nas preferências do usuário
+- **Algoritmo de aprendizado comportamental** que analisa padrões de likes/dislikes
+- **Pesos adaptativos** ajustados dinamicamente baseado no histórico do usuário
+- **Análise de tolerâncias comunitárias** (toxicity, cheaters, bugs, microtransações, otimização)
+- **Decay temporal** que prioriza interações recentes
+- **Sistema de diversificação** para evitar monotonia nas recomendações
+- **Explicabilidade** - cada recomendação inclui razões do match
 - Análise de compatibilidade com plataformas
-- Consideração de ratings de qualidade dos jogos
+- Consideração de desenvolvedores e publishers preferidos
 - Sugestões de jogos similares
+- **Cache estratégico** para performance otimizada
 
 ### Gamificação
-- Sistema de curtidas/descurtidas
+- Sistema de curtidas/descurtidas que alimenta o aprendizado do algoritmo
 - Favoritos para acesso rápido
 - Histórico de visualizações
 - Perfil personalizado com preferências
+- **Perfil comportamental** que analisa padrões de gostos e aversões
+- Níveis de experiência (novice, intermediate, advanced) baseados em interações
 
 ### Análise de Qualidade
 - Ratings automáticos baseados em reviews da Steam
@@ -197,6 +205,9 @@ Os ratings de qualidade são calculados automaticamente através da análise de 
 - **Microtransações**: Presença e impacto de microtransações
 - **Otimização**: Problemas de performance e otimização
 - **Cheaters**: Taxa de jogadores que fazem trapaça (apenas multiplayer)
+- **Not Recommended**: Taxa de usuários que não recomendam o jogo
+
+O sistema de recomendação aprende as tolerâncias do usuário para cada um desses fatores e ajusta as recomendações de acordo.
 
 ## 🤝 Contribuição
 
