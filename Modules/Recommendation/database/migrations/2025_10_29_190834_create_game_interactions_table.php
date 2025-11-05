@@ -16,16 +16,13 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->foreignId('game_id')->constrained()->cascadeOnDelete();
 
-            // Tipos de interação
-            $table->enum('type', ['view', 'like', 'dislike', 'favorite', 'skip']); // Tipo de interação
+            $table->enum('type', ['view', 'like', 'dislike', 'favorite', 'skip']);
 
-            // Metadados da interação
-            $table->integer('interaction_score')->default(0); // Pontuação calculada da interação
-            $table->timestamp('interacted_at')->useCurrent(); // Quando aconteceu
+            $table->integer('interaction_score')->default(0);
+            $table->timestamp('interacted_at')->useCurrent();
 
             $table->timestamps();
 
-            // Índices para performance
             $table->index('user_id');
             $table->index('game_id');
             $table->index(['user_id', 'game_id']);
