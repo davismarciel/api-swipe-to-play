@@ -9,7 +9,19 @@ services:
         volumes:
             - ./:/var/www
         depends_on:
+            - db
             - redis
+        command: >
+            sh -c "
+                echo '🚀 Iniciando aplicação...' &&
+                composer install --no-dev --optimize-autoloader &&
+                php artisan key:generate --force &&
+                php artisan jwt:secret --force &&
+                php artisan migrate --force &&
+                php artisan db:seed --force &&
+                echo '✅ Aplicação pronta!' &&
+                php-fpm
+            "
         networks:
             - laravel
 
@@ -30,9 +42,9 @@ services:
         image: postgres:16-alpine
         restart: unless-stopped
         environment:
-            POSTGRES_DB: ${DB_DATABASE:-laravel}
-            POSTGRES_USER: ${DB_USERNAME:-laravel}
-            POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+            POSTGRES_DB: ${DB_DATABASE:-stp_db}
+            POSTGRES_USER: ${DB_USERNAME:-postgres}
+            POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
         volumes:
             - ./.docker/postgres/dbdata:/var/lib/postgresql/data
         ports:
@@ -44,7 +56,7 @@ services:
         image: dpage/pgadmin4
         restart: unless-stopped
         ports:
-            - "8080:80"
+            - "8008:80"
         environment:
             PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
             PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
@@ -53,6 +65,8 @@ services:
 
     redis:
         image: redis:latest
+        ports:
+            - "6379:6379"
         networks:
             - laravel
 

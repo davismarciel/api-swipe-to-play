@@ -3,8 +3,10 @@
 namespace Modules\Auth\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Auth\Services\AuthService;
+use Modules\Auth\Http\Resources\AuthResource;
 use Exception;
 use Illuminate\Validation\ValidationException;
 
@@ -17,7 +19,7 @@ class AuthController extends Controller
         $this->authService = $authService;
     }
 
-    public function login(Request $request)
+    public function login(Request $request): JsonResponse
     {
         try {
             $request->validate([
@@ -26,7 +28,7 @@ class AuthController extends Controller
 
             $result = $this->authService->login($request->all());
 
-            return $this->successResponse($result);
+            return $this->successResponse(new AuthResource($result));
         } catch (ValidationException $e) {
             return $this->validationErrorResponse($e->errors());
         } catch (Exception $e) {
@@ -34,7 +36,7 @@ class AuthController extends Controller
         }
     }
 
-    public function logout()
+    public function logout(): JsonResponse
     {
         try {
             $result = $this->authService->logout();
@@ -44,17 +46,17 @@ class AuthController extends Controller
         }
     }
 
-    public function refresh()
+    public function refresh(): JsonResponse
     {
         try {
             $result = $this->authService->refreshToken();
-            return $this->successResponse($result);
+            return $this->successResponse(new AuthResource($result));
         } catch (Exception $e) {
             return $this->unauthorizedResponse($e->getMessage());
         }
     }
 
-    public function me()
+    public function me(): JsonResponse
     {
         try {
             $result = $this->authService->me();
