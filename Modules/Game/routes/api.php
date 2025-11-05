@@ -9,7 +9,7 @@ use Modules\Game\Http\Controllers\Api\GameController;
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth:api'])->prefix('api')->group(function () {
+Route::middleware(['auth:api'])->group(function () {
 
     // Games endpoints
     Route::get('/games', [GameController::class, 'index'])->name('games.index');
