@@ -4,7 +4,7 @@
  * Script para gerar SQL puro a partir do JSONL
  *
  * Uso: php generate_sql.php
- * Output: storage/app/seeds/games_seed.sql
+ * Output: database/seeds/ (arquivos separados)
  */
 
 function slugify($text)
@@ -21,7 +21,7 @@ function slugify($text)
 function escape($str)
 {
     if ($str === null) return 'NULL';
-    return "'" . addslashes($str) . "'";
+    return "'" . str_replace("'", "''", $str) . "'";
 }
 
 function parseDate($dateData)
@@ -33,7 +33,6 @@ function parseDate($dateData)
     $date = $dateData['date'];
     if (empty($date)) return 'NULL';
 
-    // Tentar converter formatos como "Aug 21, 2012" para "2012-08-21"
     $timestamp = strtotime($date);
     if ($timestamp === false) return 'NULL';
 
@@ -42,14 +41,13 @@ function parseDate($dateData)
 
 echo "🚀 Gerando SQL a partir do JSONL...\n\n";
 
-$file = __DIR__ . '/storage/app/seeds/aggregator_multigame.jsonl';
+$file = __DIR__ . '/storage/app/seeds/games_aggregator.jsonl';
 if (!file_exists($file)) {
     die("❌ Arquivo não encontrado: $file\n");
 }
 
-$output = __DIR__ . '/storage/app/seeds/games_seed.sql';
+$outputDir = __DIR__ . '/database/seeds/';
 
-// Coletar dados
 $categories = [];
 $genres = [];
 $developers = [];
@@ -68,28 +66,24 @@ while (($line = fgets($handle)) !== false) {
         continue;
     }
 
-    // Coletar categorias
     if (isset($data['categories']) && is_array($data['categories'])) {
         foreach ($data['categories'] as $cat) {
             $categories[$cat] = $cat;
         }
     }
 
-    // Coletar genres
     if (isset($data['genres']) && is_array($data['genres'])) {
         foreach ($data['genres'] as $genre) {
             $genres[$genre] = $genre;
         }
     }
 
-    // Coletar developers
     if (isset($data['developers']) && is_array($data['developers'])) {
         foreach ($data['developers'] as $dev) {
             $developers[$dev] = $dev;
         }
     }
 
-    // Coletar publishers
     if (isset($data['publishers']) && is_array($data['publishers'])) {
         foreach ($data['publishers'] as $pub) {
             $publishers[$pub] = $pub;
@@ -108,13 +102,11 @@ echo "   - Genres: " . count($genres) . "\n";
 echo "   - Developers: " . count($developers) . "\n";
 echo "   - Publishers: " . count($publishers) . "\n\n";
 
-// Ordenar
 ksort($categories);
 ksort($genres);
 ksort($developers);
 ksort($publishers);
 
-// Mapear IDs
 $catMap = [];
 $i = 1;
 foreach ($categories as $c) {
@@ -136,197 +128,337 @@ foreach ($publishers as $p) {
     $pubMap[$p] = $i++;
 }
 
-// Gerar SQL
-$sql = "-- Generated at " . date('Y-m-d H:i:s') . "\n";
-$sql .= "-- Games: " . count($games) . " | Categories: " . count($categories) . " | Genres: " . count($genres) . "\n\n";
-$sql .= "BEGIN;\n\n";
-$sql .= "-- Disable triggers temporarily\n";
-$sql .= "SET session_replication_role = 'replica';\n\n";
+echo "📝 Gerando arquivos SQL separados...\n\n";
 
-// Categories
-$sql .= "-- ============================================\n";
-$sql .= "-- CATEGORIES (" . count($categories) . ")\n";
-$sql .= "-- ============================================\n";
+$categoriesSql = "-- Seeds para Categories\n";
+$categoriesSql .= "-- Gerado automaticamente\n\n";
+$categoriesSql .= "INSERT INTO categories (name) VALUES\n";
+$catValues = [];
 foreach ($catMap as $name => $id) {
-    $slug = slugify($name);
-    $sql .= "INSERT INTO categories (id, name, slug, created_at, updated_at) VALUES ($id, " . escape($name) . ", " . escape($slug) . ", NOW(), NOW());\n";
+    $catValues[] = "  (" . escape($name) . ")";
 }
-$sql .= "\n";
+$categoriesSql .= implode(",\n", $catValues) . ";\n\n";
+$categoriesSql .= "-- Total: " . count($categories) . " categorias\n";
+file_put_contents($outputDir . '01_categories.sql', $categoriesSql);
+echo "✅ 01_categories.sql gerado\n";
 
-// Genres
-$sql .= "-- ============================================\n";
-$sql .= "-- GENRES (" . count($genres) . ")\n";
-$sql .= "-- ============================================\n";
+$genresSql = "-- Seeds para Genres\n";
+$genresSql .= "-- Gerado automaticamente\n\n";
+$genresSql .= "INSERT INTO genres (name) VALUES\n";
+$genreValues = [];
 foreach ($genMap as $name => $id) {
-    $slug = slugify($name);
-    $sql .= "INSERT INTO genres (id, name, slug, created_at, updated_at) VALUES ($id, " . escape($name) . ", " . escape($slug) . ", NOW(), NOW());\n";
+    $genreValues[] = "  (" . escape($name) . ")";
 }
-$sql .= "\n";
+$genresSql .= implode(",\n", $genreValues) . ";\n\n";
+$genresSql .= "-- Total: " . count($genres) . " gêneros\n";
+file_put_contents($outputDir . '02_genres.sql', $genresSql);
+echo "✅ 02_genres.sql gerado\n";
 
-// Developers
-$sql .= "-- ============================================\n";
-$sql .= "-- DEVELOPERS (" . count($developers) . ")\n";
-$sql .= "-- ============================================\n";
+$developersSql = "-- Seeds para Developers\n";
+$developersSql .= "-- Gerado automaticamente\n\n";
+$developersSql .= "INSERT INTO developers (name) VALUES\n";
+$devValues = [];
 foreach ($devMap as $name => $id) {
-    $slug = slugify($name);
-    $sql .= "INSERT INTO developers (id, name, slug, created_at, updated_at) VALUES ($id, " . escape($name) . ", " . escape($slug) . ", NOW(), NOW());\n";
+    $devValues[] = "  (" . escape($name) . ")";
 }
-$sql .= "\n";
+$developersSql .= implode(",\n", $devValues) . ";\n\n";
+$developersSql .= "-- Total: " . count($developers) . " desenvolvedores\n";
+file_put_contents($outputDir . '03_developers.sql', $developersSql);
+echo "✅ 03_developers.sql gerado\n";
 
-// Publishers
-$sql .= "-- ============================================\n";
-$sql .= "-- PUBLISHERS (" . count($publishers) . ")\n";
-$sql .= "-- ============================================\n";
+$publishersSql = "-- Seeds para Publishers\n";
+$publishersSql .= "-- Gerado automaticamente\n\n";
+$publishersSql .= "INSERT INTO publishers (name) VALUES\n";
+$pubValues = [];
 foreach ($pubMap as $name => $id) {
-    $slug = slugify($name);
-    $sql .= "INSERT INTO publishers (id, name, slug, created_at, updated_at) VALUES ($id, " . escape($name) . ", " . escape($slug) . ", NOW(), NOW());\n";
+    $pubValues[] = "  (" . escape($name) . ")";
 }
-$sql .= "\n";
+$publishersSql .= implode(",\n", $pubValues) . ";\n\n";
+$publishersSql .= "-- Total: " . count($publishers) . " publishers\n";
+file_put_contents($outputDir . '04_publishers.sql', $publishersSql);
+echo "✅ 04_publishers.sql gerado\n";
 
-// Games
-$sql .= "-- ============================================\n";
-$sql .= "-- GAMES (" . count($games) . ")\n";
-$sql .= "-- ============================================\n\n";
+// ============================================================================
+// 05_games.sql - Games table (normalized schema)
+// ============================================================================
+$gamesSql = "-- Seeds para Games\n";
+$gamesSql .= "-- Gerado automaticamente\n\n";
+$gamesSql .= "INSERT INTO games (\n";
+$gamesSql .= "  steam_id, name, slug, type, short_description, required_age, is_free, have_dlc,\n";
+$gamesSql .= "  icon, cover, supported_languages, release_date, coming_soon,\n";
+$gamesSql .= "  recommendations, achievements_count, achievements_highlighted,\n";
+$gamesSql .= "  positive_reviews, negative_reviews, total_reviews, positive_ratio,\n";
+$gamesSql .= "  content_descriptors, is_active\n";
+$gamesSql .= ") VALUES\n";
 
-$gameId = 1;
+$gameValues = [];
+$platformValues = [];
+$requirementValues = [];
+$ratingValues = [];
+
 foreach ($games as $g) {
-    $gameName = $g['name'] ?? 'Unknown';
-    $sql .= "-- Game #$gameId: $gameName\n";
-
     $steamId = $g['id'] ?? 0;
     $name = escape($g['name'] ?? '');
-    $type = escape($g['type'] ?? 'game');
     $slug = escape(slugify($g['name'] ?? ''));
+    $type = escape($g['type'] ?? 'game');
     $shortDesc = escape($g['short_description'] ?? '');
     $requiredAge = intval($g['required_age'] ?? 0);
-    $isFree = !empty($g['is_free']) ? 'true' : 'false';
-    $haveDlc = !empty($g['have_dlc']) ? 'true' : 'false';
+    $isFree = !empty($g['is_free']) ? 'TRUE' : 'FALSE';
+    $haveDlc = !empty($g['have_dlc']) ? 'TRUE' : 'FALSE';
     $icon = escape($g['icon'] ?? '');
-    $languages = escape(json_encode($g['supported_languages'] ?? []));
-
-    $releaseDate = parseDate($g['release_date'] ?? null);
-    $comingSoon = (isset($g['release_date']['coming_soon']) && $g['release_date']['coming_soon']) ? 'true' : 'false';
-
+    $cover = escape($g['cover'] ?? '');
+    
+    // Supported languages as JSON
+    $languages = isset($g['supported_languages']) && is_array($g['supported_languages']) 
+        ? "'" . str_replace("'", "''", json_encode($g['supported_languages'])) . "'" 
+        : 'NULL';
+    
+    // Release date
+    $comingSoon = (isset($g['release_date']['coming_soon']) && $g['release_date']['coming_soon']) ? 'TRUE' : 'FALSE';
+    $releaseDate = parseDate($g['release_date'] ?? []);
+    
+    // Stats
     $recommendations = intval($g['recommendations']['total'] ?? 0);
-    $achievementsCount = intval($g['achievements']['total'] ?? 0);
-
+    $achievements = intval($g['achievements']['total'] ?? 0);
+    $achievementsHighlighted = isset($g['achievements']['highlighted']) && is_array($g['achievements']['highlighted']) 
+        ? "'" . str_replace("'", "''", json_encode($g['achievements']['highlighted'])) . "'" 
+        : 'NULL';
+    $totalReviews = intval($g['total_reviews'] ?? 0);
     $positiveReviews = intval($g['positive_reviews'] ?? 0);
     $negativeReviews = intval($g['negative_reviews'] ?? 0);
-    $totalReviews = intval($g['total_reviews'] ?? ($positiveReviews + $negativeReviews));
     $positiveRatio = isset($g['positive_ratio']) && is_numeric($g['positive_ratio']) ? $g['positive_ratio'] : 'NULL';
-
-    $contentDescriptors = escape(json_encode($g['content_descriptors'] ?? []));
-
-    $sql .= "INSERT INTO games (id, steam_id, name, type, slug, short_description, required_age, is_free, have_dlc, icon, supported_languages, release_date, coming_soon, recommendations, achievements_count, positive_reviews, negative_reviews, total_reviews, positive_ratio, content_descriptors, is_active, created_at, updated_at) VALUES ";
-    $sql .= "($gameId, $steamId, $name, $type, $slug, $shortDesc, $requiredAge, $isFree, $haveDlc, $icon, $languages, $releaseDate, $comingSoon, $recommendations, $achievementsCount, $positiveReviews, $negativeReviews, $totalReviews, $positiveRatio, $contentDescriptors, true, NOW(), NOW());\n";
-
-    // Platforms
-    $windows = (!empty($g['plataforms']['windows'])) ? 'true' : 'false';
-    $mac = (!empty($g['plataforms']['mac'])) ? 'true' : 'false';
-    $linux = (!empty($g['plataforms']['linux'])) ? 'true' : 'false';
-    $sql .= "INSERT INTO game_platforms (game_id, windows, mac, linux, created_at, updated_at) VALUES ($gameId, $windows, $mac, $linux, NOW(), NOW());\n";
-
-    // Requirements
+    
+    // Content descriptors as JSON
+    $contentDescriptors = "'" . str_replace("'", "''", json_encode($g['content_descriptors'] ?? [])) . "'";
+    $isActive = 'TRUE';
+    
+    $gameValues[] = "  ($steamId, $name, $slug, $type, $shortDesc, $requiredAge, $isFree, $haveDlc, $icon, $cover, $languages, $releaseDate, $comingSoon, $recommendations, $achievements, $achievementsHighlighted, $positiveReviews, $negativeReviews, $totalReviews, $positiveRatio, $contentDescriptors, $isActive)";
+    
+    // Prepare platform data
+    $windows = (!empty($g['plataforms']['windows'])) ? 'TRUE' : 'FALSE';
+    $mac = (!empty($g['plataforms']['mac'])) ? 'TRUE' : 'FALSE';
+    $linux = (!empty($g['plataforms']['linux'])) ? 'TRUE' : 'FALSE';
+    $platformValues[] = "  ($steamId, $windows, $mac, $linux)";
+    
+    // Prepare requirements data
     $pcReq = escape($g['pc_requeriments'] ?? $g['pc_requirements'] ?? '');
     $macReq = escape($g['mac_requeriments'] ?? $g['mac_requirements'] ?? '');
     $linuxReq = escape($g['linux_requeriments'] ?? $g['linux_requirements'] ?? '');
-    $sql .= "INSERT INTO game_requirements (game_id, pc_requirements, mac_requirements, linux_requirements, created_at, updated_at) VALUES ($gameId, $pcReq, $macReq, $linuxReq, NOW(), NOW());\n";
-
-    // Community Ratings
+    $requirementValues[] = "  ($steamId, $pcReq, $macReq, $linuxReq)";
+    
+    // Prepare ratings data
     $ratings = $g['ratings'] ?? [];
-    $toxicity = $ratings['toxicity_rate'] ?? 0;
-    $cheater = $ratings['cheater_rate'] ?? 0;
-    $bug = $ratings['bug_rate'] ?? 0;
-    $micro = $ratings['microtransaction_rate'] ?? 0;
-    $badOpt = $ratings['bad_optimization_rate'] ?? 0;
-    $notRec = $ratings['not_recommended_rate'] ?? 0;
-    $sql .= "INSERT INTO game_community_ratings (game_id, toxicity_rate, cheater_rate, bug_rate, microtransaction_rate, bad_optimization_rate, not_recommended_rate, created_at, updated_at) VALUES ($gameId, $toxicity, $cheater, $bug, $micro, $badOpt, $notRec, NOW(), NOW());\n";
+    $toxicityRate = $ratings['toxicity_rate'] ?? 0;
+    $cheaterRate = $ratings['cheater_rate'] ?? 0;
+    $bugRate = $ratings['bug_rate'] ?? 0;
+    $microRate = $ratings['microtransaction_rate'] ?? 0;
+    $badOptRate = $ratings['bad_optimization_rate'] ?? 0;
+    $notRecRate = $ratings['not_recommended_rate'] ?? 0;
+    $ratingValues[] = "  ($steamId, $toxicityRate, $cheaterRate, $bugRate, $microRate, $badOptRate, $notRecRate)";
+}
 
-    // Media (movies)
-    if (isset($g['movies']) && is_array($g['movies'])) {
-        foreach ($g['movies'] as $movie) {
-            $mediaId = isset($movie['id']) ? intval($movie['id']) : 'NULL';
-            $movieName = escape($movie['name'] ?? '');
-            $thumb = escape($movie['thumbnail'] ?? '');
-            $webm = escape(json_encode($movie['webm'] ?? null));
-            $mp4 = escape(json_encode($movie['mp4'] ?? null));
-            $dashAv1 = escape($movie['dash_av1'] ?? '');
-            $dashH264 = escape($movie['dash_h264'] ?? '');
-            $hlsH264 = escape($movie['hls_h264'] ?? '');
-            $highlight = (!empty($movie['highlight'])) ? 'true' : 'false';
+$gamesSql .= implode(",\n", $gameValues) . ";\n\n";
+$gamesSql .= "-- Total: " . count($games) . " jogos\n";
+file_put_contents($outputDir . '05_games.sql', $gamesSql);
+echo "✅ 05_games.sql gerado\n";
 
-            $sql .= "INSERT INTO game_media (game_id, media_id, name, thumbnail, webm, mp4, dash_av1, dash_h264, hls_h264, highlight, created_at, updated_at) VALUES ($gameId, $mediaId, $movieName, $thumb, $webm, $mp4, $dashAv1, $dashH264, $hlsH264, $highlight, NOW(), NOW());\n";
-        }
-    }
+// ============================================================================
+// 05b_game_platforms.sql - Game platforms (separate table)
+// ============================================================================
+$platformsSql = "-- Seeds para Game Platforms\n";
+$platformsSql .= "-- Gerado automaticamente\n\n";
+$platformsSql .= "INSERT INTO game_platforms (game_id, windows, mac, linux)\n";
+$platformsSql .= "SELECT id, platforms.* FROM games\n";
+$platformsSql .= "CROSS JOIN LATERAL (VALUES\n";
+$platformsSql .= implode(",\n", array_map(function($val, $idx) use ($games) {
+    $steamId = $games[$idx]['id'] ?? 0;
+    return str_replace("($steamId,", "(", $val);
+}, $platformValues, array_keys($platformValues))) . "\n";
+$platformsSql .= ") AS platforms(windows, mac, linux)\n";
+$platformsSql .= "WHERE games.steam_id = ARRAY[" . implode(', ', array_map(fn($g) => $g['id'] ?? 0, $games)) . "][array_position(ARRAY[" . implode(', ', array_map(fn($g) => $g['id'] ?? 0, $games)) . "], games.steam_id::int)];\n\n";
 
-    // Pivot: game_category
+// Simpler approach - just match by position
+$platformsSql = "-- Seeds para Game Platforms\n";
+$platformsSql .= "-- Gerado automaticamente\n\n";
+$platformsSql .= "-- Insert platforms using game_id lookup\n";
+foreach ($games as $g) {
+    $steamId = $g['id'] ?? 0;
+    $windows = (!empty($g['plataforms']['windows'])) ? 'TRUE' : 'FALSE';
+    $mac = (!empty($g['plataforms']['mac'])) ? 'TRUE' : 'FALSE';
+    $linux = (!empty($g['plataforms']['linux'])) ? 'TRUE' : 'FALSE';
+    $platformsSql .= "INSERT INTO game_platforms (game_id, windows, mac, linux) SELECT id, $windows, $mac, $linux FROM games WHERE steam_id = '$steamId' ON CONFLICT (game_id) DO NOTHING;\n";
+}
+$platformsSql .= "\n-- Total: " . count($games) . " plataformas\n";
+file_put_contents($outputDir . '05b_game_platforms.sql', $platformsSql);
+echo "✅ 05b_game_platforms.sql gerado\n";
+
+// ============================================================================
+// 05c_game_requirements.sql - Game requirements (separate table)
+// ============================================================================
+$requirementsSql = "-- Seeds para Game Requirements\n";
+$requirementsSql .= "-- Gerado automaticamente\n\n";
+foreach ($games as $g) {
+    $steamId = $g['id'] ?? 0;
+    $pcReq = escape($g['pc_requeriments'] ?? $g['pc_requirements'] ?? '');
+    $macReq = escape($g['mac_requeriments'] ?? $g['mac_requirements'] ?? '');
+    $linuxReq = escape($g['linux_requeriments'] ?? $g['linux_requirements'] ?? '');
+    $requirementsSql .= "INSERT INTO game_requirements (game_id, pc_requirements, mac_requirements, linux_requirements) SELECT g.id, $pcReq, $macReq, $linuxReq FROM games g WHERE g.steam_id = '$steamId' AND NOT EXISTS (SELECT 1 FROM game_requirements gr WHERE gr.game_id = g.id);\n";
+}
+$requirementsSql .= "\n-- Total: " . count($games) . " requisitos\n";
+file_put_contents($outputDir . '05c_game_requirements.sql', $requirementsSql);
+echo "✅ 05c_game_requirements.sql gerado\n";
+
+// ============================================================================
+// 05d_game_community_ratings.sql - Game ratings (separate table)
+// ============================================================================
+$ratingsSql = "-- Seeds para Game Community Ratings\n";
+$ratingsSql .= "-- Gerado automaticamente\n\n";
+foreach ($games as $g) {
+    $steamId = $g['id'] ?? 0;
+    $ratings = $g['ratings'] ?? [];
+    $toxicityRate = $ratings['toxicity_rate'] ?? 0;
+    $cheaterRate = $ratings['cheater_rate'] ?? 0;
+    $bugRate = $ratings['bug_rate'] ?? 0;
+    $microRate = $ratings['microtransaction_rate'] ?? 0;
+    $badOptRate = $ratings['bad_optimization_rate'] ?? 0;
+    $notRecRate = $ratings['not_recommended_rate'] ?? 0;
+    $ratingsSql .= "INSERT INTO game_community_ratings (game_id, toxicity_rate, cheater_rate, bug_rate, microtransaction_rate, bad_optimization_rate, not_recommended_rate) SELECT g.id, $toxicityRate, $cheaterRate, $bugRate, $microRate, $badOptRate, $notRecRate FROM games g WHERE g.steam_id = '$steamId' AND NOT EXISTS (SELECT 1 FROM game_community_ratings gcr WHERE gcr.game_id = g.id);\n";
+}
+$ratingsSql .= "\n-- Total: " . count($games) . " avaliações\n";
+file_put_contents($outputDir . '05d_game_community_ratings.sql', $ratingsSql);
+echo "✅ 05d_game_community_ratings.sql gerado\n";
+
+// ============================================================================
+// 06_game_category.sql - Game-Category pivot table
+// ============================================================================
+$gameCategoriesSql = "-- Seeds para Game Categories (relacionamento many-to-many)\n";
+$gameCategoriesSql .= "-- Gerado automaticamente\n\n";
+
+foreach ($games as $g) {
+    $steamId = $g['id'] ?? 0;
     if (isset($g['categories']) && is_array($g['categories'])) {
         foreach ($g['categories'] as $cat) {
             if (isset($catMap[$cat])) {
-                $catId = $catMap[$cat];
-                $sql .= "INSERT INTO game_category (game_id, category_id, created_at, updated_at) VALUES ($gameId, $catId, NOW(), NOW());\n";
+                $catSlug = slugify($cat);
+                $gameCategoriesSql .= "INSERT INTO game_category (game_id, category_id) SELECT g.id, c.id FROM games g, categories c WHERE g.steam_id = '$steamId' AND c.slug = '$catSlug' ON CONFLICT (game_id, category_id) DO NOTHING;\n";
             }
         }
     }
+}
 
-    // Pivot: game_genre
+$gameCategoriesSql .= "\n-- Total relacionamentos inseridos\n";
+file_put_contents($outputDir . '06_game_category.sql', $gameCategoriesSql);
+echo "✅ 06_game_category.sql gerado\n";
+
+// ============================================================================
+// 07_game_genre.sql - Game-Genre pivot table
+// ============================================================================
+$gameGenresSql = "-- Seeds para Game Genres (relacionamento many-to-many)\n";
+$gameGenresSql .= "-- Gerado automaticamente\n\n";
+
+foreach ($games as $g) {
+    $steamId = $g['id'] ?? 0;
     if (isset($g['genres']) && is_array($g['genres'])) {
         foreach ($g['genres'] as $genre) {
             if (isset($genMap[$genre])) {
-                $genId = $genMap[$genre];
-                $sql .= "INSERT INTO game_genre (game_id, genre_id, created_at, updated_at) VALUES ($gameId, $genId, NOW(), NOW());\n";
+                $genSlug = slugify($genre);
+                $gameGenresSql .= "INSERT INTO game_genre (game_id, genre_id) SELECT g.id, ge.id FROM games g, genres ge WHERE g.steam_id = '$steamId' AND ge.slug = '$genSlug' ON CONFLICT (game_id, genre_id) DO NOTHING;\n";
             }
         }
     }
+}
 
-    // Pivot: game_developer
+$gameGenresSql .= "\n-- Total relacionamentos inseridos\n";
+file_put_contents($outputDir . '07_game_genre.sql', $gameGenresSql);
+echo "✅ 07_game_genre.sql gerado\n";
+
+// ============================================================================
+// 08_game_developer.sql - Game-Developer pivot table
+// ============================================================================
+$gameDevelopersSql = "-- Seeds para Game Developers (relacionamento many-to-many)\n";
+$gameDevelopersSql .= "-- Gerado automaticamente\n\n";
+
+foreach ($games as $g) {
+    $steamId = $g['id'] ?? 0;
     if (isset($g['developers']) && is_array($g['developers'])) {
         foreach ($g['developers'] as $dev) {
             if (isset($devMap[$dev])) {
-                $devId = $devMap[$dev];
-                $sql .= "INSERT INTO game_developer (game_id, developer_id, created_at, updated_at) VALUES ($gameId, $devId, NOW(), NOW());\n";
+                $devSlug = slugify($dev);
+                $gameDevelopersSql .= "INSERT INTO game_developer (game_id, developer_id) SELECT g.id, d.id FROM games g, developers d WHERE g.steam_id = '$steamId' AND d.slug = '$devSlug' ON CONFLICT (game_id, developer_id) DO NOTHING;\n";
             }
         }
     }
+}
 
-    // Pivot: game_publisher
+$gameDevelopersSql .= "\n-- Total relacionamentos inseridos\n";
+file_put_contents($outputDir . '08_game_developer.sql', $gameDevelopersSql);
+echo "✅ 08_game_developer.sql gerado\n";
+
+// ============================================================================
+// 09_game_publisher.sql - Game-Publisher pivot table
+// ============================================================================
+$gamePublishersSql = "-- Seeds para Game Publishers (relacionamento many-to-many)\n";
+$gamePublishersSql .= "-- Gerado automaticamente\n\n";
+
+foreach ($games as $g) {
+    $steamId = $g['id'] ?? 0;
     if (isset($g['publishers']) && is_array($g['publishers'])) {
         foreach ($g['publishers'] as $pub) {
             if (isset($pubMap[$pub])) {
-                $pubId = $pubMap[$pub];
-                $sql .= "INSERT INTO game_publisher (game_id, publisher_id, created_at, updated_at) VALUES ($gameId, $pubId, NOW(), NOW());\n";
+                $pubSlug = slugify($pub);
+                $gamePublishersSql .= "INSERT INTO game_publisher (game_id, publisher_id) SELECT g.id, p.id FROM games g, publishers p WHERE g.steam_id = '$steamId' AND p.slug = '$pubSlug' ON CONFLICT (game_id, publisher_id) DO NOTHING;\n";
             }
         }
     }
-
-    $sql .= "\n";
-    $gameId++;
 }
 
-// Reset sequences
-$sql .= "-- ============================================\n";
-$sql .= "-- RESET SEQUENCES\n";
-$sql .= "-- ============================================\n";
-$sql .= "SELECT setval(pg_get_serial_sequence('categories', 'id'), (SELECT COALESCE(MAX(id), 0) FROM categories));\n";
-$sql .= "SELECT setval(pg_get_serial_sequence('genres', 'id'), (SELECT COALESCE(MAX(id), 0) FROM genres));\n";
-$sql .= "SELECT setval(pg_get_serial_sequence('developers', 'id'), (SELECT COALESCE(MAX(id), 0) FROM developers));\n";
-$sql .= "SELECT setval(pg_get_serial_sequence('publishers', 'id'), (SELECT COALESCE(MAX(id), 0) FROM publishers));\n";
-$sql .= "SELECT setval(pg_get_serial_sequence('games', 'id'), (SELECT COALESCE(MAX(id), 0) FROM games));\n";
-$sql .= "SELECT setval(pg_get_serial_sequence('game_media', 'id'), (SELECT COALESCE(MAX(id), 0) FROM game_media));\n";
-$sql .= "SELECT setval(pg_get_serial_sequence('game_platforms', 'id'), (SELECT COALESCE(MAX(id), 0) FROM game_platforms));\n";
-$sql .= "SELECT setval(pg_get_serial_sequence('game_requirements', 'id'), (SELECT COALESCE(MAX(id), 0) FROM game_requirements));\n";
-$sql .= "SELECT setval(pg_get_serial_sequence('game_community_ratings', 'id'), (SELECT COALESCE(MAX(id), 0) FROM game_community_ratings));\n\n";
+$gamePublishersSql .= "\n-- Total relacionamentos inseridos\n";
+file_put_contents($outputDir . '09_game_publisher.sql', $gamePublishersSql);
+echo "✅ 09_game_publisher.sql gerado\n";
 
-// Re-enable triggers
-$sql .= "-- Re-enable triggers\n";
-$sql .= "SET session_replication_role = 'origin';\n\n";
-$sql .= "COMMIT;\n";
+// ============================================================================
+// 10_game_media.sql - Game media/movies
+// ============================================================================
+$gameMediaSql = "-- Seeds para Game Media\n";
+$gameMediaSql .= "-- Gerado automaticamente\n\n";
 
-// Salvar arquivo
-file_put_contents($output, $sql);
+foreach ($games as $g) {
+    $steamId = $g['id'] ?? 0;
+    if (isset($g['movies']) && is_array($g['movies'])) {
+        foreach ($g['movies'] as $movie) {
+            $mediaId = escape($movie['id'] ?? '');
+            $movieName = escape($movie['name'] ?? '');
+            $thumbnail = escape($movie['thumbnail'] ?? '');
+            $webm = isset($movie['webm']) ? "'" . str_replace("'", "''", json_encode($movie['webm'])) . "'" : 'NULL';
+            $mp4 = isset($movie['mp4']) ? "'" . str_replace("'", "''", json_encode($movie['mp4'])) . "'" : 'NULL';
+            $dashAv1 = escape($movie['dash_av1'] ?? '');
+            $dashH264 = escape($movie['dash_h264'] ?? '');
+            $hlsH264 = escape($movie['hls_h264'] ?? '');
+            $highlight = (!empty($movie['highlight'])) ? 'TRUE' : 'FALSE';
+            
+            $gameMediaSql .= "INSERT INTO game_media (game_id, media_id, name, thumbnail, webm, mp4, dash_av1, dash_h264, hls_h264, highlight) SELECT g.id, $mediaId, $movieName, $thumbnail, $webm, $mp4, $dashAv1, $dashH264, $hlsH264, $highlight FROM games g WHERE g.steam_id = '$steamId' AND NOT EXISTS (SELECT 1 FROM game_media gm WHERE gm.game_id = g.id AND gm.media_id = $mediaId);\n";
+        }
+    }
+}
 
-echo "✅ SQL gerado com sucesso!\n";
-echo "📁 Arquivo: $output\n";
-echo "📦 Tamanho: " . number_format(filesize($output) / 1024, 2) . " KB\n\n";
-echo "🚀 Para executar:\n";
-echo "   docker exec -i stp_db psql -U postgres -d stp_db < storage/app/seeds/games_seed.sql\n\n";
+$gameMediaSql .= "\n-- Total vídeos inseridos\n";
+file_put_contents($outputDir . '10_game_media.sql', $gameMediaSql);
+echo "✅ 10_game_media.sql gerado\n";
+
+echo "\n🎉 Todos os arquivos SQL foram gerados com sucesso!\n";
+echo "📁 Diretório: $outputDir\n";
+echo "📊 Resumo:\n";
+echo "   - 01_categories.sql: " . count($categories) . " categorias\n";
+echo "   - 02_genres.sql: " . count($genres) . " gêneros\n";
+echo "   - 03_developers.sql: " . count($developers) . " desenvolvedores\n";
+echo "   - 04_publishers.sql: " . count($publishers) . " publishers\n";
+echo "   - 05_games.sql: " . count($games) . " jogos\n";
+echo "   - 05b_game_platforms.sql: " . count($games) . " plataformas\n";
+echo "   - 05c_game_requirements.sql: " . count($games) . " requisitos\n";
+echo "   - 05d_game_community_ratings.sql: " . count($games) . " avaliações\n";
+echo "   - 06_game_category.sql: relacionamentos\n";
+echo "   - 07_game_genre.sql: relacionamentos\n";
+echo "   - 08_game_developer.sql: relacionamentos\n";
+echo "   - 09_game_publisher.sql: relacionamentos\n";
+echo "   - 10_game_media.sql: vídeos\n\n";
+echo "🚀 Usar Laravel Seeder: php artisan db:seed\n\n";
