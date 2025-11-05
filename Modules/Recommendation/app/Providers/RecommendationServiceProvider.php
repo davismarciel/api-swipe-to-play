@@ -60,6 +60,11 @@ class RecommendationServiceProvider extends ServiceProvider
             \Modules\Recommendation\Contracts\GameFilterServiceInterface::class,
             \Modules\Recommendation\Services\GameFilterService::class
         );
+
+        $this->app->bind(
+            \Modules\Recommendation\Contracts\BehaviorAnalysisServiceInterface::class,
+            \Modules\Recommendation\Services\BehaviorAnalysisService::class
+        );
     }
 
     /**
