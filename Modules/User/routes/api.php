@@ -10,7 +10,7 @@ use Modules\User\Http\Controllers\Api\UserPreferenceController;
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth:api'])->prefix('api')->group(function () {
+Route::middleware(['auth:api'])->group(function () {
 
     // User preferences endpoints
     Route::prefix('user/preferences')->group(function () {
