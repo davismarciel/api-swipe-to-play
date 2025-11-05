@@ -97,19 +97,36 @@ class AuthService
 
     public function refreshToken(): array
     {
-        $token = JWTAuth::getToken();
-        
-        if (!$token) {
-            throw new Exception('Token not provided');
+        try {
+            // O middleware jwt.refresh já permite tokens expirados (dentro do refresh_ttl)
+            // O getToken() pode retornar o token mesmo se expirado quando usado com jwt.refresh
+            $token = JWTAuth::getToken();
+            
+            if (!$token) {
+                throw new Exception('Token not provided');
+            }
+            
+            // O método refresh() automaticamente:
+            // 1. Valida que o token está dentro do refresh_ttl
+            // 2. Adiciona o token antigo à blacklist com TTL igual ao tempo restante de expiração
+            // 3. Gera um novo token válido
+            $newToken = JWTAuth::refresh($token);
+            
+            return [
+                'access_token' => $newToken,
+                'token_type' => 'bearer',
+                'expires_in' => config('jwt.ttl', 60),
+            ];
+        } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
+            // Token expirou além do refresh_ttl - precisa fazer login novamente
+            throw new Exception('Token cannot be refreshed. Please login again.');
+        } catch (\Tymon\JWTAuth\Exceptions\TokenBlacklistedException $e) {
+            // Token está na blacklist - precisa fazer login novamente
+            throw new Exception('Token has been invalidated. Please login again.');
+        } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
+            // Outros erros JWT
+            throw new Exception('Unable to refresh token: ' . $e->getMessage());
         }
-        
-        $newToken = JWTAuth::refresh($token);
-        
-        return [
-            'access_token' => $newToken,
-            'token_type' => 'bearer',
-            'expires_in' => config('jwt.ttl', 60),
-        ];
     }
     
     public function me(): array
