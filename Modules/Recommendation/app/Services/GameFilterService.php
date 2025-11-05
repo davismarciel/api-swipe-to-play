@@ -31,6 +31,16 @@ class GameFilterService implements GameFilterServiceInterface
             return;
         }
 
+        // Check if any platform preferences are set
+        $hasPlatformPreference = $preferences->prefer_windows 
+            || $preferences->prefer_mac 
+            || $preferences->prefer_linux;
+
+        // Skip platform filtering if no platforms are preferred
+        if (!$hasPlatformPreference) {
+            return;
+        }
+
         $query->whereHas('platform', function ($q) use ($preferences) {
             $q->where(function ($platformQuery) use ($preferences) {
                 if ($preferences->prefer_windows) {
