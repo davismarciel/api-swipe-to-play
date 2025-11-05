@@ -56,6 +56,10 @@ class UserPreferenceController extends Controller
 
         $user = $request->user();
 
+        $validated = array_filter($validated, function ($value) {
+            return $value !== null;
+        });
+
         $preferences = UserPreference::updateOrCreate(
             ['user_id' => $user->id],
             $validated
@@ -80,6 +84,10 @@ class UserPreferenceController extends Controller
         ]);
 
         $user = $request->user();
+
+        $validated = array_filter($validated, function ($value) {
+            return $value !== null;
+        });
 
         $monetizationPreferences = UserMonetizationPreference::updateOrCreate(
             ['user_id' => $user->id],
