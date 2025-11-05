@@ -77,4 +77,9 @@ class User extends Authenticatable implements JWTSubject
     {
         return $this->hasMany(\Modules\Recommendation\Models\GameInteraction::class);
     }
+
+    public function behaviorProfile(): HasOne
+    {
+        return $this->hasOne(\Modules\Recommendation\Models\UserBehaviorProfile::class);
+    }
 }
