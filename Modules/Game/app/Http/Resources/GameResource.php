@@ -36,8 +36,17 @@ class GameResource extends JsonResource
             'developers' => $this->whenLoaded('developers'),
             'publishers' => $this->whenLoaded('publishers'),
             'requirements' => $this->whenLoaded('requirements'),
-            'community_rating' => $this->whenLoaded('communityRating'),
-            'media' => $this->whenLoaded('media'),
+            'community_rating' => $this->whenLoaded('communityRating')
+                ? ($this->communityRating ? new CommunityRatingResource($this->communityRating) : null)
+                : null,
+            'media' => $this->whenLoaded('media')
+                ? GameMediaResource::collection(
+                    $this->media->filter(function ($media) {
+                        // Filter out videos - only return images/screenshots
+                        return empty($media->mp4) && empty($media->webm) && empty($media->hls_h264);
+                    })
+                )
+                : null,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
