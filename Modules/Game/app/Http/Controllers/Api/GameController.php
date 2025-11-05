@@ -57,7 +57,7 @@ class GameController extends Controller
         }
 
         $perPage = $request->input('per_page', 15);
-        $games = $query->with(['genres', 'categories', 'platform', 'developers', 'publishers'])
+        $games = $query->with(['genres', 'categories', 'platform', 'developers', 'publishers', 'communityRating'])
             ->orderBy('positive_reviews', 'desc')
             ->paginate($perPage);
 
