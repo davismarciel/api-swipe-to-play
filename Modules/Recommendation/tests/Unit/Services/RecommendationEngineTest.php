@@ -10,7 +10,7 @@ use Modules\Recommendation\Services\RecommendationEngine;
 use Modules\Recommendation\Services\ScoreCalculator;
 use Modules\Recommendation\Services\GameFilterService;
 use Modules\Recommendation\Services\BehaviorAnalysisService;
-use Modules\Recommendation\Models\UserBehaviorProfile;
+use Modules\Game\Services\DailyGameCacheService;
 use Illuminate\Support\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
@@ -30,6 +30,9 @@ class RecommendationEngineTest extends TestCase
     /** @var \Mockery\MockInterface|BehaviorAnalysisService */
     private $behaviorAnalysis;
 
+    /** @var \Mockery\MockInterface|DailyGameCacheService */
+    private $dailyGameCache;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -40,11 +43,14 @@ class RecommendationEngineTest extends TestCase
         $this->filterService = M::mock(GameFilterService::class);
         /** @phpstan-ignore-next-line */
         $this->behaviorAnalysis = M::mock(BehaviorAnalysisService::class);
+        /** @phpstan-ignore-next-line */
+        $this->dailyGameCache = M::mock(DailyGameCacheService::class);
         
         $this->engine = new RecommendationEngine(
             $this->scoreCalculator,
             $this->filterService,
-            $this->behaviorAnalysis
+            $this->behaviorAnalysis,
+            $this->dailyGameCache
         );
     }
 
@@ -65,6 +71,17 @@ class RecommendationEngineTest extends TestCase
         $user->shouldReceive('setAttribute')->andReturnSelf();
         $user->shouldReceive('getAttribute')->with('id')->andReturn(1);
         $user->id = 1;
+        
+        // Mock dos relacionamentos necessários
+        $emptyGenres = collect([]);
+        $emptyCategories = collect([]);
+        $user->shouldReceive('load')->with(['preferredGenres', 'preferredCategories', 'preferences'])->andReturnUsing(function() use ($user, $emptyGenres, $emptyCategories) {
+            $user->setRelation('preferredGenres', $emptyGenres);
+            $user->setRelation('preferredCategories', $emptyCategories);
+            return $user;
+        });
+        $user->setRelation('preferredGenres', $emptyGenres);
+        $user->setRelation('preferredCategories', $emptyCategories);
         
         /** @phpstan-ignore-next-line */
         $queryBuilder = M::mock(\Illuminate\Database\Eloquent\Builder::class);
@@ -105,6 +122,17 @@ class RecommendationEngineTest extends TestCase
         $user->shouldReceive('setAttribute')->andReturnSelf();
         $user->shouldReceive('getAttribute')->with('id')->andReturn(1);
         $user->id = 1;
+        
+        // Mock dos relacionamentos necessários
+        $emptyGenres = collect([]);
+        $emptyCategories = collect([]);
+        $user->shouldReceive('load')->with(['preferredGenres', 'preferredCategories', 'preferences'])->andReturnUsing(function() use ($user, $emptyGenres, $emptyCategories) {
+            $user->setRelation('preferredGenres', $emptyGenres);
+            $user->setRelation('preferredCategories', $emptyCategories);
+            return $user;
+        });
+        $user->setRelation('preferredGenres', $emptyGenres);
+        $user->setRelation('preferredCategories', $emptyCategories);
         
         $this->behaviorAnalysis
             ->shouldReceive('buildOrUpdateProfile')
