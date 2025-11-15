@@ -132,7 +132,6 @@ docker-compose exec app php artisan db:seed
 - **Análise de tolerâncias comunitárias** (toxicity, cheaters, bugs, microtransações, otimização)
 - **Decay temporal** que prioriza interações recentes
 - **Sistema de diversificação** para evitar monotonia nas recomendações
-- **Explicabilidade** - cada recomendação inclui razões do match
 - Análise de compatibilidade com plataformas
 - Consideração de desenvolvedores e publishers preferidos
 - Sugestões de jogos similares
@@ -209,18 +208,6 @@ Os ratings de qualidade são calculados automaticamente através da análise de 
 
 O sistema de recomendação aprende as tolerâncias do usuário para cada um desses fatores e ajusta as recomendações de acordo.
 
-## 🤝 Contribuição
+## 🔭 Futuras Funcionalidades
 
-1. Faça um fork do projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'feat: add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abra um Pull Request
-
-## 📝 Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
-
-## 🆘 Suporte
-
-Se você encontrar algum problema ou tiver dúvidas, por favor abra uma issue no repositório.
+- Camada de explicabilidade das recomendações diretamente na API para consumo opcional do aplicativo móvel.
