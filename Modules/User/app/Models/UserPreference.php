@@ -23,8 +23,6 @@ class UserPreference extends Model
         'min_age_rating',
         'avoid_violence',
         'avoid_nudity',
-        'max_price',
-        'prefer_free_to_play',
         'include_early_access',
     ];
 
@@ -40,8 +38,6 @@ class UserPreference extends Model
         'min_age_rating' => 'integer',
         'avoid_violence' => 'boolean',
         'avoid_nudity' => 'boolean',
-        'max_price' => 'decimal:2',
-        'prefer_free_to_play' => 'boolean',
         'include_early_access' => 'boolean',
     ];
 

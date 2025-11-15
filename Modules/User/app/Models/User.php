@@ -10,10 +10,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
+use Modules\User\Database\Factories\UserFactory;
 
 class User extends Authenticatable implements JWTSubject
 {
     use HasFactory, Notifiable, SoftDeletes;
+
+    protected static function newFactory()
+    {
+        return UserFactory::new();
+    }
 
     protected $fillable = [
         'google_id',

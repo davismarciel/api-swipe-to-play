@@ -23,8 +23,6 @@ class UserPreferenceResource extends JsonResource
             'min_age_rating' => $this->min_age_rating,
             'avoid_violence' => $this->avoid_violence,
             'avoid_nudity' => $this->avoid_nudity,
-            'max_price' => $this->max_price,
-            'prefer_free_to_play' => $this->prefer_free_to_play,
             'include_early_access' => $this->include_early_access,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
