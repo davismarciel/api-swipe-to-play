@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('game_interactions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('game_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('game_id')->constrained()->restrictOnDelete();
 
             $table->enum('type', ['view', 'like', 'dislike', 'favorite', 'skip']);
 
