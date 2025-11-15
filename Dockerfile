@@ -30,5 +30,6 @@ RUN pecl install -o -f redis \
 WORKDIR /var/www
 
 COPY docker/php/custom.ini /usr/local/etc/php/conf.d/custom.ini
+COPY docker/php/php-fpm.conf /usr/local/etc/php-fpm.d/zzz-custom.conf
 
 USER $user
