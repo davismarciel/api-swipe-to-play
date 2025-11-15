@@ -42,7 +42,6 @@ class GameResource extends JsonResource
             'media' => $this->whenLoaded('media')
                 ? GameMediaResource::collection(
                     $this->media->filter(function ($media) {
-                        // Filter out videos - only return images/screenshots
                         return empty($media->mp4) && empty($media->webm) && empty($media->hls_h264);
                     })
                 )

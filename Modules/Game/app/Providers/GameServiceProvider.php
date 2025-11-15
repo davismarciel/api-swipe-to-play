@@ -32,7 +32,12 @@ class GameServiceProvider extends ServiceProvider
         $this->app->register(RouteServiceProvider::class);
     }
 
-    protected function registerCommands(): void {}
+    protected function registerCommands(): void
+    {
+        $this->commands([
+            \Modules\Game\Console\Commands\CleanOldDailyGames::class,
+        ]);
+    }
 
     protected function registerCommandSchedules(): void {}
 
