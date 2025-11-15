@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Modules\User\Http\Controllers\UserController;
 use Modules\User\Http\Controllers\Api\UserPreferenceController;
+use Modules\User\Http\Controllers\Api\OnboardingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -11,6 +12,13 @@ use Modules\User\Http\Controllers\Api\UserPreferenceController;
 */
 
 Route::middleware(['auth:api'])->group(function () {
+
+    // Onboarding endpoints
+    Route::prefix('onboarding')->group(function () {
+        Route::post('/complete', [OnboardingController::class, 'complete'])->name('onboarding.complete');
+        Route::get('/recommendations', [OnboardingController::class, 'getInitialRecommendations'])->name('onboarding.recommendations');
+        Route::get('/status', [OnboardingController::class, 'checkStatus'])->name('onboarding.status');
+    });
 
     // User preferences endpoints
     Route::prefix('user/preferences')->group(function () {
