@@ -72,7 +72,10 @@ class RecommendationServiceProvider extends ServiceProvider
      */
     protected function registerCommands(): void
     {
-        // $this->commands([]);
+        $this->commands([
+            \Modules\Recommendation\Console\Commands\SyncNeo4jGraph::class,
+            \Modules\Recommendation\Console\Commands\SetupNeo4jIndexes::class,
+        ]);
     }
 
     /**

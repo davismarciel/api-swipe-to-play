@@ -27,4 +27,7 @@ Route::middleware(['auth:api'])->group(function () {
             Route::post('/skip', [GameInteractionController::class, 'skip'])->name('games.skip');
         });
 
+    Route::delete('/interactions/clear', [GameInteractionController::class, 'clearAll'])
+        ->name('interactions.clear');
+
 });

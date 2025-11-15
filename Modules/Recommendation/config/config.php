@@ -53,4 +53,14 @@ return [
         'recommendations' => env('RECOMMENDATION_RATE_LIMIT', '60,1'), 
         'interactions' => env('RECOMMENDATION_INTERACTION_RATE_LIMIT', '100,1'), 
     ],
+
+    'neo4j' => [
+        'enabled' => env('NEO4J_ENABLED', false),
+        'uri' => env('NEO4J_URI', 'bolt://neo4j:7687'),
+        'username' => env('NEO4J_USERNAME', 'neo4j'),
+        'password' => env('NEO4J_PASSWORD', 'password'),
+        'database' => env('NEO4J_DATABASE', 'neo4j'),
+        'aura_instance_id' => env('AURA_INSTANCEID', null),
+        'aura_instance_name' => env('AURA_INSTANCENAME', null),
+    ],
 ];
