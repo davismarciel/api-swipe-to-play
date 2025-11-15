@@ -3,6 +3,7 @@
 namespace Modules\Recommendation\Services;
 
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 use Modules\Game\Models\Game;
 use Modules\User\Models\User;
 use Modules\Recommendation\Models\UserBehaviorProfile;
@@ -15,7 +16,6 @@ class ScoreCalculator implements ScoreCalculatorInterface
         private BehaviorAnalysisServiceInterface $behaviorAnalysis
     ) {}
 
-    // Método legado mantido para compatibilidade
     public function calculateScore(User $user, Game $game): float
     {
         $profile = $user->behaviorProfile;
@@ -24,7 +24,6 @@ class ScoreCalculator implements ScoreCalculatorInterface
             return $this->calculateScoreWithProfile($user, $game, $profile);
         }
 
-        // Fallback para score simples sem perfil
         return $this->calculateDefaultScore($user, $game);
     }
 
@@ -49,7 +48,6 @@ class ScoreCalculator implements ScoreCalculatorInterface
      */
     public function calculateScoreWithProfile(User $user, Game $game, UserBehaviorProfile $profile): float
     {
-        // Validações de entrada
         if (!$user || !$game || !$profile) {
             throw new \InvalidArgumentException('User, Game and Profile are required');
         }
@@ -59,7 +57,7 @@ class ScoreCalculator implements ScoreCalculatorInterface
         }
         
         if (!$profile->last_analyzed_at) {
-            \Log::warning('Using unanalyzed profile', [
+            Log::warning('Using unanalyzed profile', [
                 'user_id' => $user->id,
                 'profile_id' => $profile->id
             ]);
@@ -67,15 +65,13 @@ class ScoreCalculator implements ScoreCalculatorInterface
         
         $weights = $profile->adaptive_weights ?? $this->getDefaultWeights($profile->total_interactions);
         
-        // Valida pesos
         if (empty($weights)) {
-            \Log::warning('Empty weights, using defaults', ['user_id' => $user->id]);
+            Log::warning('Empty weights, using defaults', ['user_id' => $user->id]);
             $weights = $this->getDefaultWeights($profile->total_interactions);
         }
         
         $scores = [];
 
-        // Componentes de score
         if (isset($weights['genre_match'])) {
             $scores['genre_match'] = $this->calculateGenreScore($user, $game, $profile);
         }
@@ -112,14 +108,12 @@ class ScoreCalculator implements ScoreCalculatorInterface
             $scores['maturity_match'] = $this->calculateMaturityScore($game, $profile);
         }
 
-        // Calcula score ponderado
         $finalScore = 0;
         foreach ($scores as $key => $score) {
             $weight = $weights[$key] ?? 0;
             $finalScore += $score * ($weight / 100);
         }
 
-        // Aplica penalizações
         $finalScore = $this->applyPenalizations($finalScore, $game, $profile, $user);
 
         return round($finalScore, 2);
@@ -161,7 +155,6 @@ class ScoreCalculator implements ScoreCalculatorInterface
                 $score += $stats['weighted_score'] ?? $defaultScore;
                 $matchCount++;
             } elseif (isset($dislikedStats[$entityId])) {
-                // Penaliza entidades rejeitadas
                 $score -= $dislikePenalty;
                 $matchCount++;
             }
@@ -242,21 +235,18 @@ class ScoreCalculator implements ScoreCalculatorInterface
         $topDevelopers = $profile->top_developers ?? [];
         $topPublishers = $profile->top_publishers ?? [];
         
-        // Bonus por desenvolvedores favoritos
         foreach ($gameDevelopers as $devId) {
             if (isset($topDevelopers[$devId])) {
                 $score += min(25, $topDevelopers[$devId] * 5);
             }
         }
         
-        // Bonus por publishers favoritos
         foreach ($gamePublishers as $pubId) {
             if (isset($topPublishers[$pubId])) {
                 $score += min(15, $topPublishers[$pubId] * 3);
             }
         }
         
-        // Penalização por desenvolvedores/publishers rejeitados
         $rejectedDevs = $this->behaviorAnalysis->getRejectedDevelopers($user);
         $rejectedPubs = $this->behaviorAnalysis->getRejectedPublishers($user);
         
@@ -294,7 +284,6 @@ class ScoreCalculator implements ScoreCalculatorInterface
         
         $totalPenalty = 0;
         foreach ($penalties as $p) {
-            // Penaliza apenas se rate > tolerance
             if ($p['rate'] > $p['tolerance']) {
                 $totalPenalty += ($p['rate'] - $p['tolerance']) * $p['weight'];
             }
@@ -311,17 +300,14 @@ class ScoreCalculator implements ScoreCalculatorInterface
         $preference = $profile->free_to_play_preference;
         $isFree = $game->is_free;
 
-        // Preferência neutra
         if (abs($preference) < 0.2) {
             return 50;
         }
 
-        // Usuário prefere free-to-play
         if ($preference > 0) {
             return $isFree ? 100 : max(0, 50 - ($preference * 50));
         }
 
-        // Usuário prefere pagos
         return $isFree ? max(0, 50 + ($preference * 50)) : 100;
     }
 
@@ -359,17 +345,14 @@ class ScoreCalculator implements ScoreCalculatorInterface
         $tolerance = $profile->mature_content_tolerance;
         $gameAge = $game->required_age;
 
-        // Jogo maduro (17+)
         if ($gameAge >= 17) {
             return $tolerance * 100;
         }
 
-        // Jogo para todas idades
         if ($gameAge === 0) {
-            return 100; // Sempre OK
+            return 100;
         }
 
-        // Idade intermediária (13-16)
         return 70 + ($tolerance * 30);
     }
 
@@ -378,12 +361,10 @@ class ScoreCalculator implements ScoreCalculatorInterface
      */
     private function applyPenalizations(float $score, Game $game, UserBehaviorProfile $profile, User $user): float
     {
-        // Penaliza jogos muito antigos sem reviews
         if ($game->total_reviews < 10 && $game->release_date && $game->release_date->diffInYears(now()) > 3) {
             $score *= 0.8;
         }
 
-        // Penaliza jogos com ratio muito baixo
         if ($game->positive_ratio && $game->positive_ratio < 0.4) {
             $score *= 0.7;
         }
@@ -398,7 +379,6 @@ class ScoreCalculator implements ScoreCalculatorInterface
     {
         $reasons = [];
 
-        // Analisa principais fatores
         $likedGenres = $profile->liked_genres_stats ?? [];
         $gameGenres = $game->genres;
         
@@ -413,7 +393,6 @@ class ScoreCalculator implements ScoreCalculatorInterface
             $reasons[] = 'Gêneros que você adora: ' . implode(', ', array_slice($matchedGenres, 0, 3));
         }
 
-        // Desenvolvedores favoritos
         $topDevelopers = $profile->top_developers ?? [];
         $gameDevelopers = $game->developers;
         
@@ -424,18 +403,15 @@ class ScoreCalculator implements ScoreCalculatorInterface
             }
         }
 
-        // Comunidade saudável
         $communityScore = $this->calculateCommunityHealthScore($game, $profile);
         if ($communityScore >= 70) {
             $reasons[] = 'Comunidade saudável e bem avaliada';
         }
 
-        // Avaliações positivas
         if ($game->positive_ratio && $game->positive_ratio >= 0.8) {
             $reasons[] = round($game->positive_ratio * 100) . '% de avaliações positivas';
         }
 
-        // Se não encontrou razões específicas
         if (empty($reasons)) {
             $reasons[] = 'Jogo popular e recomendado';
         }

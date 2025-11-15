@@ -7,25 +7,47 @@ use Illuminate\Support\Facades\Log;
 use Modules\Game\Models\Game;
 use Modules\User\Models\User;
 use Modules\Recommendation\Models\GameInteraction;
+use Modules\Game\Services\DailyGameCacheService;
 use Modules\Recommendation\Contracts\RecommendationEngineInterface;
 use Modules\Recommendation\Contracts\ScoreCalculatorInterface;
 use Modules\Recommendation\Contracts\GameFilterServiceInterface;
 use Modules\Recommendation\Contracts\BehaviorAnalysisServiceInterface;
+use Modules\Recommendation\Services\Neo4jRecommendationService;
+use Modules\Recommendation\Services\Neo4jGraphSyncService;
+use Modules\Recommendation\Services\Neo4jService;
 
 class RecommendationEngine implements RecommendationEngineInterface
 {
+    private ?Neo4jRecommendationService $neo4jRecommendation = null;
+    private ?Neo4jGraphSyncService $neo4jSync = null;
+
     public function __construct(
         private ScoreCalculatorInterface $scoreCalculator,
         private GameFilterServiceInterface $filterService,
-        private BehaviorAnalysisServiceInterface $behaviorAnalysis
-    ) {}
+        private BehaviorAnalysisServiceInterface $behaviorAnalysis,
+        private DailyGameCacheService $dailyGameCache
+    ) {
+        if (config('recommendation.neo4j.enabled')) {
+            try {
+                $neo4j = app(Neo4jService::class);
+                if ($neo4j->isConnected()) {
+                    $this->neo4jRecommendation = app(Neo4jRecommendationService::class);
+                    $this->neo4jSync = app(Neo4jGraphSyncService::class);
+                }
+            } catch (\Exception $e) {
+                Log::warning('Neo4j not available, using standard recommendations', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
 
     /**
      * Obtém recomendações personalizadas para o usuário
      *
      * @param User $user Usuário para quem gerar recomendações
      * @param int $limit Número máximo de recomendações (padrão: 10)
-     * @return Collection Coleção de jogos recomendados com scores e explicações
+     * @return Collection Coleção de jogos recomendados com scores
      */
     public function getRecommendations(User $user, int $limit = 10): Collection
     {
@@ -40,6 +62,38 @@ class RecommendationEngine implements RecommendationEngineInterface
                     'limit' => $limit
                 ]);
                 return $this->getDefaultRecommendations($user, $limit);
+            }
+
+            $useNeo4j = $this->neo4jRecommendation !== null && $profile->total_interactions >= 5;
+            
+            if ($useNeo4j) {
+                try {
+                    // Usa o sistema híbrido avançado do Neo4j
+                    $neo4jRecommendations = $this->neo4jRecommendation->getHybridGraphRecommendations($user, $limit * 2);
+                    
+                    if ($neo4jRecommendations->isNotEmpty()) {
+                        // Combina com algoritmo padrão para refinar scores
+                        $hybridRecommendations = $this->combineNeo4jWithStandard($user, $neo4jRecommendations, $profile, $limit);
+                        
+                        $executionTime = microtime(true) - $startTime;
+                        
+                        Log::info('Advanced hybrid recommendations generated (Neo4j Multi-Strategy + Standard)', [
+                            'user_id' => $user->id,
+                            'count' => $hybridRecommendations->count(),
+                            'limit' => $limit,
+                            'execution_time_ms' => round($executionTime * 1000, 2),
+                            'neo4j_candidates' => $neo4jRecommendations->count(),
+                            'strategies_used' => $neo4jRecommendations->first()?->neo4j_metadata['strategies_used'] ?? [],
+                        ]);
+                        
+                        return $hybridRecommendations;
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('Neo4j hybrid recommendations failed, falling back to standard', [
+                        'user_id' => $user->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
             
             $candidateMultiplier = config('recommendation.diversification.candidate_multiplier', 5);
@@ -61,7 +115,6 @@ class RecommendationEngine implements RecommendationEngineInterface
                     $score = $this->scoreCalculator->calculateScoreWithProfile($user, $game, $profile);
                     
                     $game->recommendation_score = $score;
-                    $game->explanation = $this->scoreCalculator->generateExplanation($score, $game, $profile);
                     
                     return $game;
                 } catch (\Exception $e) {
@@ -71,11 +124,6 @@ class RecommendationEngine implements RecommendationEngineInterface
                         'error' => $e->getMessage()
                     ]);
                     $game->recommendation_score = 50;
-                    $game->explanation = [
-                        'match_percentage' => 50,
-                        'top_reasons' => ['Score calculation error'],
-                        'score_breakdown' => []
-                    ];
                     return $game;
                 }
             });
@@ -93,6 +141,7 @@ class RecommendationEngine implements RecommendationEngineInterface
                 'execution_time_ms' => round($executionTime * 1000, 2),
                 'profile_age_days' => $profile->last_analyzed_at?->diffInDays(now()),
                 'total_interactions' => $profile->total_interactions ?? 0,
+                'neo4j_enabled' => $useNeo4j,
             ]);
             
             return $result;
@@ -110,31 +159,166 @@ class RecommendationEngine implements RecommendationEngineInterface
     }
 
     /**
+     * Combina recomendações do Neo4j com o algoritmo padrão
+     * Usa pesos adaptativos baseados no perfil do usuário
+     */
+    private function combineNeo4jWithStandard(
+        User $user,
+        Collection $neo4jGames,
+        $profile,
+        int $limit
+    ): Collection {
+        $combined = collect();
+        $totalInteractions = $profile->total_interactions ?? 0;
+        
+        // Pesos adaptativos: quanto mais interações, mais confiamos no Neo4j
+        $neo4jWeight = $this->calculateNeo4jWeight($totalInteractions);
+        $standardWeight = 1 - $neo4jWeight;
+        
+        foreach ($neo4jGames as $game) {
+            $neo4jScore = $game->recommendation_score ?? 50;
+            
+            try {
+                $standardScore = $this->scoreCalculator->calculateScoreWithProfile($user, $game, $profile);
+            } catch (\Exception $e) {
+                Log::warning('Error calculating standard score, using Neo4j only', [
+                    'user_id' => $user->id,
+                    'game_id' => $game->id,
+                    'error' => $e->getMessage(),
+                ]);
+                $standardScore = $neo4jScore;
+            }
+            
+            // Score final combinado
+            $finalScore = ($neo4jScore * $neo4jWeight) + ($standardScore * $standardWeight);
+            
+            // Bonus para jogos recomendados por múltiplas estratégias do Neo4j
+            $strategyCount = $game->neo4j_metadata['strategy_count'] ?? 1;
+            if ($strategyCount > 1) {
+                $finalScore *= (1 + (($strategyCount - 1) * 0.05));
+            }
+            
+            $game->recommendation_score = round($finalScore, 2);
+            $game->score_breakdown = [
+                'neo4j_score' => round($neo4jScore, 2),
+                'standard_score' => round($standardScore, 2),
+                'neo4j_weight' => $neo4jWeight,
+                'standard_weight' => $standardWeight,
+                'strategy_bonus' => $strategyCount > 1,
+            ];
+            
+            $combined->push($game);
+        }
+        
+        return $combined->sortByDesc('recommendation_score')->take($limit)->values();
+    }
+    
+    /**
+     * Calcula peso adaptativo para Neo4j baseado em interações
+     */
+    private function calculateNeo4jWeight(int $totalInteractions): float
+    {
+        // Usuários novos (< 10 interações): 40% Neo4j, 60% padrão
+        if ($totalInteractions < 10) {
+            return 0.40;
+        }
+        
+        // Usuários intermediários (10-50): 60% Neo4j, 40% padrão
+        if ($totalInteractions < 50) {
+            return 0.60;
+        }
+        
+        // Usuários avançados (50-100): 70% Neo4j, 30% padrão
+        if ($totalInteractions < 100) {
+            return 0.70;
+        }
+        
+        // Usuários muito ativos (100+): 80% Neo4j, 20% padrão
+        return 0.80;
+    }
+
+    /**
      * Retorna recomendações default para usuários sem perfil comportamental
      * 
-     * Usa critérios básicos como popularidade e avaliações positivas
+     * Usa preferências do onboarding (gêneros, categorias, plataformas) quando disponíveis
+     * Caso contrário, usa critérios básicos como popularidade e avaliações positivas
      *
      * @param User $user Usuário para quem gerar recomendações
      * @param int $limit Número de recomendações
-     * @return Collection Coleção de jogos com score neutro
+     * @return Collection Coleção de jogos com score baseado em preferências do onboarding
      */
     private function getDefaultRecommendations(User $user, int $limit): Collection
     {
-        return $this->filterService->filterGames($user)
+        $user->load(['preferredGenres', 'preferredCategories', 'preferences']);
+        
+        $query = $this->filterService->filterGames($user);
+        
+        if ($user->preferredGenres->isNotEmpty()) {
+            $genreIds = $user->preferredGenres->pluck('id')->toArray();
+            $query->whereHas('genres', function ($q) use ($genreIds) {
+                $q->whereIn('genres.id', $genreIds);
+            });
+        }
+        
+        if ($user->preferredCategories->isNotEmpty()) {
+            $categoryIds = $user->preferredCategories->pluck('id')->toArray();
+            $query->orWhereHas('categories', function ($q) use ($categoryIds) {
+                $q->whereIn('categories.id', $categoryIds);
+            });
+        }
+        
+        $games = $query
             ->with(['genres', 'categories', 'platform', 'developers', 'publishers', 'communityRating'])
             ->orderByDesc('total_reviews')
             ->orderByDesc('positive_ratio')
-            ->limit($limit)
-            ->get()
-            ->map(function($game) {
-                $game->recommendation_score = 50; // Score neutro
-                $game->explanation = [
-                    'match_percentage' => 50,
-                    'top_reasons' => ['Jogo popular e bem avaliado'],
-                    'score_breakdown' => []
-                ];
-                return $game;
-            });
+            ->limit($limit * 2)
+            ->get();
+        
+        if ($games->isEmpty() && ($user->preferredGenres->isNotEmpty() || $user->preferredCategories->isNotEmpty())) {
+            $games = $this->filterService->filterGames($user)
+                ->with(['genres', 'categories', 'platform', 'developers', 'publishers', 'communityRating'])
+                ->orderByDesc('total_reviews')
+                ->orderByDesc('positive_ratio')
+                ->limit($limit * 2)
+                ->get();
+        }
+        
+        return $games->map(function($game) use ($user) {
+            $score = 50;
+            
+            $userGenreIds = $user->preferredGenres->pluck('id')->toArray();
+            $gameGenreIds = $game->genres->pluck('id')->toArray();
+            $matchingGenres = array_intersect($userGenreIds, $gameGenreIds);
+            
+            if (!empty($matchingGenres)) {
+                $score += 20;
+            }
+            
+            $userCategoryIds = $user->preferredCategories->pluck('id')->toArray();
+            $gameCategoryIds = $game->categories->pluck('id')->toArray();
+            $matchingCategories = array_intersect($userCategoryIds, $gameCategoryIds);
+            
+            if (!empty($matchingCategories)) {
+                $score += 10;
+            }
+            
+            if ($game->total_reviews > 10000) {
+                $score += 10;
+            }
+            
+            if ($game->positive_ratio > 0.8) {
+                $score += 10;
+            }
+            
+            $score = min(100, max(0, $score));
+            
+            $game->recommendation_score = $score;
+            
+            return $game;
+        })
+        ->sortByDesc('recommendation_score')
+        ->take($limit)
+        ->values();
     }
 
     /**
@@ -208,13 +392,43 @@ class RecommendationEngine implements RecommendationEngineInterface
             ]
         );
 
+        if (in_array($type, ['like', 'dislike', 'favorite'], true)) {
+            $this->dailyGameCache->markAsSeen($user->id, $game->id);
+        }
+
         $this->updateUserProfileStats($user, $type);
 
         $this->behaviorAnalysis->incrementInteractionCounter($user);
 
+        $profileUpdated = false;
         if ($this->behaviorAnalysis->shouldUpdateProfile($user)) {
             $this->behaviorAnalysis->buildOrUpdateProfile($user, force: true);
+            $profileUpdated = true;
         }
+
+        if ($this->neo4jSync !== null) {
+            try {
+                $this->neo4jSync->syncUser($user);
+                $this->neo4jSync->syncGame($game);
+                $this->neo4jSync->syncInteraction($interaction);
+            } catch (\Exception $e) {
+                Log::warning('Failed to sync interaction to Neo4j', [
+                    'user_id' => $user->id,
+                    'game_id' => $game->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        Log::info('Game interaction recorded', [
+            'user_id' => $user->id,
+            'game_id' => $game->id,
+            'type' => $type,
+            'interaction_id' => $interaction->id,
+            'interaction_score' => $interactionScore,
+            'profile_updated' => $profileUpdated,
+            'neo4j_synced' => $this->neo4jSync !== null,
+        ]);
 
         return $interaction;
     }
@@ -282,7 +496,15 @@ class RecommendationEngine implements RecommendationEngineInterface
         $genreIds = $game->genres()->pluck('genres.id')->toArray();
         $categoryIds = $game->categories()->pluck('categories.id')->toArray();
 
-        return Game::query()
+        Log::debug('Similar games requested', [
+            'game_id' => $game->id,
+            'game_name' => $game->name,
+            'limit' => $limit,
+            'genre_ids' => $genreIds,
+            'category_ids' => $categoryIds,
+        ]);
+
+        $similarGames = Game::query()
             ->where('id', '!=', $game->id)
             ->where('is_active', true)
             ->where(function ($query) use ($genreIds, $categoryIds) {
@@ -300,6 +522,14 @@ class RecommendationEngine implements RecommendationEngineInterface
             ->with(['genres', 'categories', 'platform', 'communityRating', 'requirements'])
             ->limit($limit)
             ->get();
+
+        Log::info('Similar games retrieved', [
+            'game_id' => $game->id,
+            'limit' => $limit,
+            'count' => $similarGames->count(),
+        ]);
+
+        return $similarGames;
     }
 
     /**
@@ -345,6 +575,15 @@ class RecommendationEngine implements RecommendationEngineInterface
         $profile = $user->profile;
         $behaviorProfile = $user->behaviorProfile;
 
+        $interactionsCount = $user->gameInteractions()->count();
+
+        Log::debug('User stats retrieved', [
+            'user_id' => $user->id,
+            'has_profile' => $profile !== null,
+            'has_behavior_profile' => $behaviorProfile !== null,
+            'interactions_count' => $interactionsCount,
+        ]);
+
         return [
             'level' => $profile?->level ?? 1,
             'experience_points' => $profile?->experience_points ?? 0,
@@ -352,7 +591,7 @@ class RecommendationEngine implements RecommendationEngineInterface
             'total_dislikes' => $profile?->total_dislikes ?? 0,
             'total_favorites' => $profile?->total_favorites ?? 0,
             'total_views' => $profile?->total_views ?? 0,
-            'interactions_count' => $user->gameInteractions()->count(),
+            'interactions_count' => $interactionsCount,
             'favorite_genres' => $user->preferredGenres()->get(),
             'favorite_categories' => $user->preferredCategories()->get(),
             'experience_level' => $behaviorProfile?->experience_level ?? 'novice',

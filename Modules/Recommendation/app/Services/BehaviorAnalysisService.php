@@ -80,7 +80,6 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
             }
         }
 
-        // Calcula médias e taxas
         foreach ($likedGenres as $genreId => &$stats) {
             $stats['avg_temporal_weight'] = count($stats['temporal_weights']) > 0
                 ? array_sum($stats['temporal_weights']) / count($stats['temporal_weights'])
@@ -141,7 +140,6 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
             }
         }
 
-        // Calcula médias e taxas
         foreach ($likedCategories as $categoryId => &$stats) {
             $stats['avg_temporal_weight'] = count($stats['temporal_weights']) > 0
                 ? array_sum($stats['temporal_weights']) / count($stats['temporal_weights'])
@@ -178,7 +176,6 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
             }
         }
 
-        // Ordena por contagem e pega top 10
         arsort($developers);
         return array_slice($developers, 0, 10, true);
     }
@@ -199,7 +196,6 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
             }
         }
 
-        // Ordena por contagem e pega top 10
         arsort($publishers);
         return array_slice($publishers, 0, 10, true);
     }
@@ -234,7 +230,6 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
             return 0.0; // Neutro
         }
 
-        // Calcula preferência: -1.0 (prefere pagos) a 1.0 (prefere gratuitos)
         $freeScore = ($freeGamesLiked - $freeGamesDisliked) / max(1, $freeGamesLiked + $freeGamesDisliked);
         $paidScore = ($paidGamesLiked - $paidGamesDisliked) / max(1, $paidGamesLiked + $paidGamesDisliked);
 
@@ -294,7 +289,6 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
             $tolerances['not_recommended'][] = (float) $rating->not_recommended_rate;
         }
 
-        // Calcula média para cada tolerância
         $result = [];
         foreach ($tolerances as $key => $values) {
             if (count($values) > 0) {
@@ -312,7 +306,6 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
         $totalInteractions = $user->gameInteractions()->count();
         $baseWeights = $this->getBaseWeightsByLevel($totalInteractions);
 
-        // Ajusta pesos baseado em padrões
         $genreConsistency = $this->calculateConsistency($patterns['genres']['liked'] ?? []);
         $categoryConsistency = $this->calculateConsistency($patterns['categories']['liked'] ?? []);
         $developerConsistency = count($patterns['developers'] ?? []) > 0 ? 1.2 : 0.8;
@@ -324,7 +317,6 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
             $baseWeights['developer_match'] *= $developerConsistency;
         }
 
-        // Normaliza para somar 100
         $total = array_sum($baseWeights);
         foreach ($baseWeights as &$weight) {
             $weight = round(($weight / $total) * 100, 1);
@@ -348,7 +340,6 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
     {
         $startTime = microtime(true);
         
-        // Cache key baseado no usuário e última interação
         $cacheEnabled = config('recommendation.cache.enabled', true);
         $cacheKey = null;
         
@@ -360,7 +351,6 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
                 $cacheKey .= ":{$lastInteraction->interacted_at->timestamp}";
             }
             
-            // Retorna do cache se disponível
             $cached = Cache::get($cacheKey);
             if ($cached && !$this->shouldUpdateProfile($user)) {
                 Log::debug('Profile retrieved from cache', [
@@ -369,14 +359,23 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
                 ]);
                 return $cached;
             }
+            
+            Log::debug('Profile not found in cache or needs update', [
+                'user_id' => $user->id,
+                'cache_key' => $cacheKey,
+                'has_cached' => $cached !== null,
+                'needs_update' => $this->shouldUpdateProfile($user)
+            ]);
         }
         
-        // Verifica se deve atualizar
         if (!$force && !$this->shouldUpdateProfile($user)) {
+            Log::debug('Profile does not need update', [
+                'user_id' => $user->id,
+                'has_profile' => $user->behaviorProfile !== null
+            ]);
             return $user->behaviorProfile;
         }
 
-        // Se não tem interações suficientes, não cria perfil
         $minInteractions = config('recommendation.behavior_analysis.min_interactions_for_profile', 3);
         $totalInteractions = $user->gameInteractions()->count();
         
@@ -389,12 +388,23 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
             return null;
         }
 
-        // Analisa todos os padrões
+        Log::debug('Starting profile analysis', [
+            'user_id' => $user->id,
+            'total_interactions' => $totalInteractions,
+            'force' => $force
+        ]);
+
         $profile = $this->performAnalysis($user, $totalInteractions);
 
         if ($profile && $cacheEnabled && $cacheKey) {
             $cacheTtl = config('recommendation.cache.ttl', 86400);
             Cache::put($cacheKey, $profile, now()->addSeconds($cacheTtl));
+            
+            Log::debug('Profile cached', [
+                'user_id' => $user->id,
+                'cache_key' => $cacheKey,
+                'cache_ttl' => $cacheTtl
+            ]);
         }
         
         $executionTime = microtime(true) - $startTime;
@@ -403,7 +413,8 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
             'user_id' => $user->id,
             'interactions_analyzed' => $totalInteractions,
             'execution_time_ms' => round($executionTime * 1000, 2),
-            'cached' => $cacheEnabled && $cacheKey !== null
+            'cached' => $cacheEnabled && $cacheKey !== null,
+            'profile_id' => $profile->id ?? null
         ]);
 
         return $profile;
@@ -414,6 +425,11 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
      */
     private function performAnalysis(User $user, int $totalInteractions): ?UserBehaviorProfile
     {
+        Log::debug('Analyzing user patterns', [
+            'user_id' => $user->id,
+            'total_interactions' => $totalInteractions
+        ]);
+
         $genrePatterns = $this->analyzeGenrePatterns($user);
         $categoryPatterns = $this->analyzeCategoryPatterns($user);
         $developerPatterns = $this->analyzeDeveloperPatterns($user);
@@ -422,14 +438,20 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
         $matureContentTol = $this->analyzeMatureContentTolerance($user);
         $communityTolerances = $this->analyzeCommunityTolerances($user);
 
-        // Calcula pesos adaptativos
         $adaptiveWeights = $this->calculateAdaptiveWeights($user, [
             'genres' => $genrePatterns,
             'categories' => $categoryPatterns,
             'developers' => $developerPatterns,
         ]);
 
-        // Cria ou atualiza perfil
+        Log::debug('Pattern analysis completed', [
+            'user_id' => $user->id,
+            'liked_genres_count' => count($genrePatterns['liked']),
+            'disliked_genres_count' => count($genrePatterns['disliked']),
+            'top_developers_count' => count($developerPatterns),
+            'top_publishers_count' => count($publisherPatterns)
+        ]);
+
         $profile = $user->behaviorProfile()->updateOrCreate(
             ['user_id' => $user->id],
             [
@@ -476,12 +498,21 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
             $profile->increment('interactions_since_update');
             $profile->increment('total_interactions');
             $profile->update(['last_interaction_at' => now()]);
+            
+            Log::debug('Interaction counter incremented', [
+                'user_id' => $user->id,
+                'total_interactions' => $profile->total_interactions,
+                'interactions_since_update' => $profile->interactions_since_update
+            ]);
         } else {
-            // Cria perfil inicial
             $user->behaviorProfile()->create([
                 'total_interactions' => 1,
                 'interactions_since_update' => 1,
                 'last_interaction_at' => now(),
+            ]);
+            
+            Log::debug('Initial behavior profile created', [
+                'user_id' => $user->id
             ]);
         }
     }
@@ -505,7 +536,6 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
             }
         }
 
-        // Retorna desenvolvedores com 2+ rejeições
         return array_keys(array_filter($developers, fn($count) => $count >= 2));
     }
 
@@ -528,7 +558,6 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
             }
         }
 
-        // Retorna publishers com 2+ rejeições
         return array_keys(array_filter($publishers, fn($count) => $count >= 2));
     }
 
@@ -547,7 +576,6 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
     private function calculateTemporalWeight(Carbon $interactionDate): float
     {
         $daysAgo = now()->diffInDays($interactionDate);
-        // 100% (hoje) -> 50% (6 meses) -> 25% (1 ano+)
         return max(0.25, 1 - ($daysAgo / 365) * 0.75);
     }
 
@@ -593,7 +621,6 @@ class BehaviorAnalysisService implements BehaviorAnalysisServiceInterface
         $total = array_sum($counts);
         $max = max($counts);
 
-        // Se um item domina (>50%), há alta consistência
         return $total > 0 ? $max / $total : 0;
     }
 }

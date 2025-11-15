@@ -3,6 +3,7 @@
 namespace Modules\Recommendation\Services;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Log;
 use Modules\Game\Models\Game;
 use Modules\User\Models\User;
 use Modules\Recommendation\Contracts\GameFilterServiceInterface;
@@ -13,12 +14,19 @@ class GameFilterService implements GameFilterServiceInterface
     {
         $query = $query ?? Game::query();
 
+        Log::debug('Applying game filters', [
+            'user_id' => $user->id
+        ]);
+
         $query->where('is_active', true);
 
         $this->applyPlatformFilter($user, $query);
-        $this->applyPriceFilter($user, $query);
         $this->applyContentFilter($user, $query);
         $this->excludeInteractedGames($user, $query);
+
+        Log::debug('Game filters applied successfully', [
+            'user_id' => $user->id
+        ]);
 
         return $query;
     }
@@ -28,18 +36,32 @@ class GameFilterService implements GameFilterServiceInterface
         $preferences = $user->preferences;
 
         if (!$preferences) {
+            Log::debug('No platform filter applied: user has no preferences', [
+                'user_id' => $user->id
+            ]);
             return;
         }
 
-        // Check if any platform preferences are set
         $hasPlatformPreference = $preferences->prefer_windows 
             || $preferences->prefer_mac 
             || $preferences->prefer_linux;
 
-        // Skip platform filtering if no platforms are preferred
         if (!$hasPlatformPreference) {
+            Log::debug('No platform filter applied: no platform preferences', [
+                'user_id' => $user->id
+            ]);
             return;
         }
+
+        $platforms = [];
+        if ($preferences->prefer_windows) $platforms[] = 'windows';
+        if ($preferences->prefer_mac) $platforms[] = 'mac';
+        if ($preferences->prefer_linux) $platforms[] = 'linux';
+
+        Log::debug('Applying platform filter', [
+            'user_id' => $user->id,
+            'platforms' => $platforms
+        ]);
 
         $query->whereHas('platform', function ($q) use ($preferences) {
             $q->where(function ($platformQuery) use ($preferences) {
@@ -56,32 +78,34 @@ class GameFilterService implements GameFilterServiceInterface
         });
     }
 
-    private function applyPriceFilter(User $user, Builder $query): void
-    {
-        $preferences = $user->preferences;
-
-        if (!$preferences) {
-            return;
-        }
-
-        if ($preferences->prefer_free_to_play) {
-            $query->where('is_free', true);
-        }
-    }
-
     private function applyContentFilter(User $user, Builder $query): void
     {
         $preferences = $user->preferences;
 
         if (!$preferences) {
+            Log::debug('No content filter applied: user has no preferences', [
+                'user_id' => $user->id
+            ]);
             return;
         }
 
+        $filters = [];
+
         if ($preferences->min_age_rating > 0) {
             $query->where('required_age', '<=', $preferences->min_age_rating);
+            $filters['min_age_rating'] = $preferences->min_age_rating;
         }
 
         if ($preferences->avoid_violence || $preferences->avoid_nudity) {
+            $contentFilters = [];
+            if ($preferences->avoid_violence) {
+                $contentFilters[] = 'violence';
+            }
+            if ($preferences->avoid_nudity) {
+                $contentFilters[] = 'nudity';
+            }
+            $filters['avoid_content'] = $contentFilters;
+
             $query->where(function ($q) use ($preferences) {
                 if ($preferences->avoid_violence) {
                     $q->whereJsonDoesntContain('content_descriptors->ids', 1)
@@ -93,6 +117,13 @@ class GameFilterService implements GameFilterServiceInterface
                 }
             });
         }
+
+        if (!empty($filters)) {
+            Log::debug('Applying content filter', [
+                'user_id' => $user->id,
+                'filters' => $filters
+            ]);
+        }
     }
 
     private function excludeInteractedGames(User $user, Builder $query): void
@@ -103,7 +134,16 @@ class GameFilterService implements GameFilterServiceInterface
             ->toArray();
 
         if (!empty($interactedGameIds)) {
+            Log::debug('Excluding interacted games', [
+                'user_id' => $user->id,
+                'excluded_count' => count($interactedGameIds)
+            ]);
+
             $query->whereNotIn('id', $interactedGameIds);
+        } else {
+            Log::debug('No interacted games to exclude', [
+                'user_id' => $user->id
+            ]);
         }
     }
 
