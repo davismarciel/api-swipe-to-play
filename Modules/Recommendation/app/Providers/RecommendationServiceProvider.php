@@ -46,24 +46,26 @@ class RecommendationServiceProvider extends ServiceProvider
      */
     protected function registerInterfaces(): void
     {
+        $this->app->singleton(
+            \Modules\Recommendation\Contracts\Neo4j\Neo4jConnectionInterface::class,
+            function ($app) {
+                return new \Modules\Recommendation\Infrastructure\Neo4j\Neo4jConnection();
+            }
+        );
+
+        $this->app->bind(
+            \Modules\Recommendation\Contracts\Neo4j\Neo4jRecommendationServiceInterface::class,
+            \Modules\Recommendation\Services\Neo4j\Neo4jRecommendationService::class
+        );
+
         $this->app->bind(
             \Modules\Recommendation\Contracts\RecommendationEngineInterface::class,
             \Modules\Recommendation\Services\RecommendationEngine::class
         );
 
         $this->app->bind(
-            \Modules\Recommendation\Contracts\ScoreCalculatorInterface::class,
-            \Modules\Recommendation\Services\ScoreCalculator::class
-        );
-
-        $this->app->bind(
             \Modules\Recommendation\Contracts\GameFilterServiceInterface::class,
             \Modules\Recommendation\Services\GameFilterService::class
-        );
-
-        $this->app->bind(
-            \Modules\Recommendation\Contracts\BehaviorAnalysisServiceInterface::class,
-            \Modules\Recommendation\Services\BehaviorAnalysisService::class
         );
     }
 
