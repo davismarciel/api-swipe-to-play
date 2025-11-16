@@ -2,13 +2,9 @@ name: Tests
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [main]
   pull_request:
-    branches:
-      - main
-      - master
+    branches: [main]
 
 permissions:
   contents: read
@@ -26,47 +22,31 @@ jobs:
           POSTGRES_PASSWORD: swipetoplay
         ports:
           - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
       neo4j:
         image: neo4j:5-community
         env:
           NEO4J_AUTH: neo4j/password
         ports:
-          - 7474:7474
           - 7687:7687
-        options: >-
-          --health-cmd "cypher-shell -u neo4j -p password 'RETURN 1'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v4
         with:
           php-version: '8.3'
           extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, pdo_pgsql, pgsql, redis
-          coverage: none
 
-      - name: Install Composer dependencies
-        run: composer install --prefer-dist --no-interaction --no-progress --no-scripts
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
 
-      - name: Copy environment file
-        run: cp .env.example .env || true
-
-      - name: Generate app key
-        run: php artisan key:generate --force
-
-      - name: Setup test environment
+      - name: Setup environment
         run: |
+          cp .env.example .env || true
+          php artisan key:generate --force
           echo "DB_CONNECTION=pgsql" >> .env
           echo "DB_HOST=localhost" >> .env
           echo "DB_PORT=5432" >> .env
@@ -76,10 +56,9 @@ jobs:
           echo "NEO4J_URI=bolt://localhost:7687" >> .env
           echo "NEO4J_USERNAME=neo4j" >> .env
           echo "NEO4J_PASSWORD=password" >> .env
-          echo "NEO4J_DATABASE=neo4j" >> .env
 
       - name: Run migrations
         run: php artisan migrate --force
 
-      - name: Execute tests
+      - name: Run tests
         run: php artisan test
