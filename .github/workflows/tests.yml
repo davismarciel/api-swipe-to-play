@@ -3,11 +3,12 @@ name: Tests
 on:
   push:
     branches:
+      - main
       - master
-      - '*.x'
   pull_request:
-  schedule:
-    - cron: '0 0 * * *'
+    branches:
+      - main
+      - master
 
 permissions:
   contents: read
@@ -16,32 +17,69 @@ jobs:
   tests:
     runs-on: ubuntu-latest
 
-    strategy:
-      fail-fast: true
-      matrix:
-        php: [8.2, 8.3, 8.4]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: swipetoplay
+          POSTGRES_USER: swipetoplay
+          POSTGRES_PASSWORD: swipetoplay
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
-    name: PHP ${{ matrix.php }}
+      neo4j:
+        image: neo4j:5-community
+        env:
+          NEO4J_AUTH: neo4j/password
+        ports:
+          - 7474:7474
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p password 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@v4
         with:
-          php-version: ${{ matrix.php }}
-          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
+          php-version: '8.3'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, pdo_pgsql, pgsql, redis
           coverage: none
 
       - name: Install Composer dependencies
-        run: composer install --prefer-dist --no-interaction --no-progress
+        run: composer install --prefer-dist --no-interaction --no-progress --no-scripts
 
       - name: Copy environment file
-        run: cp .env.example .env
+        run: cp .env.example .env || true
 
       - name: Generate app key
-        run: php artisan key:generate
+        run: php artisan key:generate --force
+
+      - name: Setup test environment
+        run: |
+          echo "DB_CONNECTION=pgsql" >> .env
+          echo "DB_HOST=localhost" >> .env
+          echo "DB_PORT=5432" >> .env
+          echo "DB_DATABASE=swipetoplay" >> .env
+          echo "DB_USERNAME=swipetoplay" >> .env
+          echo "DB_PASSWORD=swipetoplay" >> .env
+          echo "NEO4J_URI=bolt://localhost:7687" >> .env
+          echo "NEO4J_USERNAME=neo4j" >> .env
+          echo "NEO4J_PASSWORD=password" >> .env
+          echo "NEO4J_DATABASE=neo4j" >> .env
+
+      - name: Run migrations
+        run: php artisan migrate --force
 
       - name: Execute tests
         run: php artisan test
