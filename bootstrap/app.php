@@ -18,11 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        // Retorna 401 JSON para erros de autenticação em rotas de API
-        // Isso previne que o middleware tente redirecionar para 'login' que não existe em APIs
         $exceptions->render(function (AuthenticationException $e, Request $request) {
             if ($request->is('api/*') || $request->expectsJson()) {
                 return response()->json([
@@ -33,7 +30,6 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
         
-        // Captura RouteNotFoundException que pode ocorrer quando middleware tenta redirecionar
         $exceptions->render(function (RouteNotFoundException $e, Request $request) {
             if ($request->is('api/*') || $request->expectsJson()) {
                 return response()->json([
@@ -44,7 +40,6 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
         
-        // Tratamento de exceções JWT específicas
         $exceptions->render(function (TokenExpiredException $e, Request $request) {
             if ($request->is('api/*') || $request->expectsJson()) {
                 return response()->json([
