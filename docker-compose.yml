@@ -46,27 +46,33 @@ services:
             POSTGRES_USER: ${DB_USERNAME:-postgres}
             POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
         volumes:
-            - ./.docker/postgres/dbdata:/var/lib/postgresql/data
+            - /var/lib/postgresql/data
         ports:
             - "5433:5432"
         networks:
             - laravel
-
-    pgadmin:
-        image: dpage/pgadmin4
-        restart: unless-stopped
-        ports:
-            - "8008:80"
-        environment:
-            PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
-            PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
-        networks:
-            - laravel
-
     redis:
         image: redis:latest
         ports:
             - "6379:6379"
+        networks:
+            - laravel
+
+    neo4j:
+        container_name: stp_neo4j
+        image: neo4j:5-community
+        restart: unless-stopped
+        environment:
+            NEO4J_AUTH: neo4j/password
+            NEO4J_PLUGINS: '["apoc"]'
+            NEO4J_dbms_memory_heap_max__size: 2G
+            NEO4J_dbms_memory_pagecache_size: 1G
+        ports:
+            - "7474:7474"
+            - "7687:7687"
+        volumes:
+            - /var/lib/neo4j/data
+            - /var/lib/neo4j/logs
         networks:
             - laravel
 
