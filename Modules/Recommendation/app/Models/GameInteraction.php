@@ -7,10 +7,16 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Modules\User\Models\User;
 use Modules\Game\Models\Game;
+use Modules\Recommendation\Database\Factories\GameInteractionFactory;
 
 class GameInteraction extends Model
 {
     use HasFactory;
+
+    protected static function newFactory()
+    {
+        return GameInteractionFactory::new();
+    }
 
     protected $fillable = [
         'user_id',

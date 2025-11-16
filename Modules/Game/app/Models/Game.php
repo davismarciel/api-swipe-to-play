@@ -10,10 +10,16 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Modules\User\Models\Genre;
 use Modules\User\Models\Category;
+use Modules\Game\Database\Factories\GameFactory;
 
 class Game extends Model
 {
     use HasFactory;
+
+    protected static function newFactory()
+    {
+        return GameFactory::new();
+    }
 
     protected $fillable = [
         'steam_id',
