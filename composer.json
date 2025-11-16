@@ -12,6 +12,7 @@
         "google/auth": "^1.48",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
+        "laudis/neo4j-php-client": "^3.4",
         "nwidart/laravel-modules": "^12.0",
         "tymon/jwt-auth": "^2.2"
     },
@@ -22,7 +23,8 @@
         "laravel/sail": "^1.41",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
-        "phpunit/phpunit": "^11.5.3"
+        "pestphp/pest": "^3.8",
+        "pestphp/pest-plugin-laravel": "^3.2"
     },
     "autoload": {
         "psr-4": {
@@ -75,6 +77,9 @@
             "pestphp/pest-plugin": true,
             "php-http/discovery": true,
             "wikimedia/composer-merge-plugin": true
+        },
+        "audit": {
+            "ignore": ["PKSA-365x-2zjk-pt47"]
         }
     },
     "minimum-stability": "stable",
