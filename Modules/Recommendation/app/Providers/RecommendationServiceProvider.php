@@ -74,7 +74,9 @@ class RecommendationServiceProvider extends ServiceProvider
      */
     protected function registerCommands(): void
     {
-        // $this->commands([]);
+        $this->commands([
+            \Modules\Recommendation\Console\Commands\SyncGamesToNeo4jCommand::class,
+        ]);
     }
 
     /**
