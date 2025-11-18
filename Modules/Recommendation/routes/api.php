@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Recommendation\Http\Controllers\Api\RecommendationController;
 use Modules\Recommendation\Http\Controllers\Api\GameInteractionController;
 
-Route::middleware(['auth:api'])->group(function () {
+Route::middleware(['force.json', 'auth:api', 'onboarding.completed'])->group(function () {
     
     $recommendationRateLimit = config('recommendation.rate_limits.recommendations', '60,1');
     $interactionRateLimit = config('recommendation.rate_limits.interactions', '100,1');
