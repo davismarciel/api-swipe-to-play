@@ -5,7 +5,10 @@ namespace Modules\Recommendation\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Modules\Recommendation\Contracts\RecommendationEngineInterface;
+use Modules\Recommendation\Http\Requests\GetRecommendationsRequest;
+use Modules\Recommendation\Http\Requests\GetSimilarGamesRequest;
 use Modules\Game\Http\Resources\GameResource;
 
 class RecommendationController extends Controller
@@ -15,17 +18,13 @@ class RecommendationController extends Controller
     ) {}
 
     /**
-     * Obtém recomendações personalizadas para o usuário autenticado
+     * Gets personalized recommendations for the authenticated user
      *
-     * @param Request $request
+     * @param GetRecommendationsRequest $request
      * @return JsonResponse
      */
-    public function index(Request $request): JsonResponse
+    public function index(GetRecommendationsRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'limit' => 'sometimes|integer|min:1|max:50',
-        ]);
-
         try {
             $user = $request->user();
             
@@ -33,6 +32,7 @@ class RecommendationController extends Controller
                 return $this->errorResponse('User not authenticated', 401);
             }
             
+            $validated = $request->validated();
             $limit = $validated['limit'] ?? 10;
             
             $recommendations = $this->recommendationEngine->getRecommendations($user, $limit);
@@ -44,7 +44,7 @@ class RecommendationController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('Error retrieving recommendations', [
+            Log::error('Error retrieving recommendations', [
                 'user_id' => $request->user()?->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -58,20 +58,17 @@ class RecommendationController extends Controller
     }
 
     /**
-     * Obtém jogos similares a um jogo específico
+     * Gets similar games to a specific game
      *
-     * @param Request $request
-     * @param int $gameId ID do jogo
+     * @param GetSimilarGamesRequest $request
+     * @param int $gameId Game ID
      * @return JsonResponse
      */
-    public function similar(Request $request, int $gameId): JsonResponse
+    public function similar(GetSimilarGamesRequest $request, int $gameId): JsonResponse
     {
-        $validated = $request->validate([
-            'limit' => 'sometimes|integer|min:1|max:20',
-        ]);
-
         try {
             $game = \Modules\Game\Models\Game::findOrFail($gameId);
+            $validated = $request->validated();
             $limit = $validated['limit'] ?? 5;
 
             $similarGames = $this->recommendationEngine->getSimilarGames($game, $limit);
@@ -86,7 +83,7 @@ class RecommendationController extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return $this->errorResponse('Game not found', 404);
         } catch (\Exception $e) {
-            \Log::error('Error retrieving similar games', [
+            Log::error('Error retrieving similar games', [
                 'game_id' => $gameId,
                 'error' => $e->getMessage()
             ]);
@@ -99,7 +96,7 @@ class RecommendationController extends Controller
     }
 
     /**
-     * Obtém estatísticas de recomendação do usuário
+     * Gets the user's recommendation statistics
      *
      * @param Request $request
      * @return JsonResponse
@@ -118,7 +115,7 @@ class RecommendationController extends Controller
             return $this->successResponse($stats);
             
         } catch (\Exception $e) {
-            \Log::error('Error retrieving user stats', [
+            Log::error('Error retrieving user stats', [
                 'user_id' => $request->user()?->id,
                 'error' => $e->getMessage()
             ]);

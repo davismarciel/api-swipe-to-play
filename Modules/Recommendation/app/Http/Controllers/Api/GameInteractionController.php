@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Recommendation\Contracts\RecommendationEngineInterface;
 use Modules\Recommendation\Http\Resources\GameInteractionResource;
+use Illuminate\Support\Facades\Log;
 
 class GameInteractionController extends Controller
 {
@@ -15,10 +16,10 @@ class GameInteractionController extends Controller
     ) {}
 
     /**
-     * Registra uma interação de "like" com um jogo
+     * Registers a "like" interaction with a game
      *
      * @param Request $request
-     * @param int $gameId ID do jogo
+     * @param int $gameId Game ID
      * @return JsonResponse
      */
     public function like(Request $request, int $gameId): JsonResponse
@@ -39,7 +40,7 @@ class GameInteractionController extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return $this->errorResponse('Game not found', 404);
         } catch (\Exception $e) {
-            \Log::error('Error recording like interaction', [
+            Log::error('Error recording like interaction', [
                 'user_id' => $request->user()?->id,
                 'game_id' => $gameId,
                 'error' => $e->getMessage()
@@ -53,7 +54,7 @@ class GameInteractionController extends Controller
     }
 
     /**
-     * Registra uma interação de "dislike" com um jogo
+     * Registers a "dislike" interaction with a game
      */
     public function dislike(Request $request, int $gameId): JsonResponse
     {
@@ -61,7 +62,7 @@ class GameInteractionController extends Controller
     }
 
     /**
-     * Adiciona um jogo aos favoritos
+     * Adds a game to the user's favorites
      */
     public function favorite(Request $request, int $gameId): JsonResponse
     {
@@ -69,7 +70,7 @@ class GameInteractionController extends Controller
     }
 
     /**
-     * Registra uma visualização de jogo
+     * Registers a game view
      */
     public function view(Request $request, int $gameId): JsonResponse
     {
@@ -77,7 +78,7 @@ class GameInteractionController extends Controller
     }
 
     /**
-     * Registra que o usuário pulou um jogo
+     * Registers that the user skipped a game
      */
     public function skip(Request $request, int $gameId): JsonResponse
     {
@@ -85,7 +86,7 @@ class GameInteractionController extends Controller
     }
     
     /**
-     * Método auxiliar para registrar interações
+     * Helper method to record interactions
      */
     private function recordInteraction(Request $request, int $gameId, string $type, string $message): JsonResponse
     {
@@ -105,7 +106,7 @@ class GameInteractionController extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return $this->errorResponse('Game not found', 404);
         } catch (\Exception $e) {
-            \Log::error('Error recording interaction', [
+            Log::error('Error recording interaction', [
                 'user_id' => $request->user()?->id,
                 'game_id' => $gameId,
                 'type' => $type,
