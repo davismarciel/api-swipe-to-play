@@ -8,37 +8,37 @@ use Modules\User\Models\User;
 use Modules\Recommendation\Models\GameInteraction;
 
 /**
- * Interface para o motor de recomendação
+ * Interface for the recommendation engine
  */
 interface RecommendationEngineInterface
 {
     /**
-     * Obtém os próximos jogos recomendados para o usuário
+     * Gets the next recommended games for the user
      */
     public function getRecommendations(User $user, int $limit = 10): Collection;
 
     /**
-     * Registra uma interação do usuário com um jogo
+     * Registers a user interaction with a game
      */
     public function recordInteraction(User $user, Game $game, string $type): GameInteraction;
 
     /**
-     * Obtém jogos similares a um jogo específico
+     * Gets similar games to a specific game
      */
     public function getSimilarGames(Game $game, int $limit = 5): Collection;
 
     /**
-     * Obtém histórico de interações do usuário
+     * Gets the user interaction history
      */
     public function getUserInteractionHistory(User $user, int $limit = 20): Collection;
 
     /**
-     * Obtém jogos favoritos do usuário
+     * Gets the user's favorite games
      */
     public function getUserFavorites(User $user): Collection;
 
     /**
-     * Obtém estatísticas de recomendação do usuário
+     * Gets the user's recommendation statistics
      */
     public function getUserStats(User $user): array;
 }

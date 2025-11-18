@@ -74,7 +74,13 @@ class RecommendationEngine implements RecommendationEngineInterface
      */
     private function getDefaultRecommendations(User $user, int $limit): Collection
     {
-        return $this->filterService->filterGames($user)
+        $query = $this->filterService->filterGames($user);
+        
+        if ($user->preferredGenres()->count() > 0) {
+            $query = $this->filterService->applyGenreBoost($user, $query);
+        }
+        
+        return $query
             ->with(['genres', 'categories', 'platform', 'developers', 'publishers', 'communityRating'])
             ->orderByDesc('total_reviews')
             ->orderByDesc('positive_ratio')
@@ -119,7 +125,40 @@ class RecommendationEngine implements RecommendationEngineInterface
         try {
             $this->syncService->syncUser($user);
             $this->syncService->syncGame($game);
-            $this->syncService->syncGameInteraction($interaction);
+            
+            if (in_array($type, ['like', 'dislike'])) {
+                $likeDislikeCount = GameInteraction::where('user_id', $user->id)
+                    ->whereIn('type', ['like', 'dislike'])
+                    ->count();
+                
+                if ($likeDislikeCount % 5 == 0) {
+                    $this->syncService->syncGameInteraction($interaction);
+                    Log::info('Game interaction synced to Neo4j', [
+                        'user_id' => $user->id,
+                        'game_id' => $game->id,
+                        'interaction_id' => $interaction->id,
+                        'type' => $type,
+                        'like_dislike_count' => $likeDislikeCount
+                    ]);
+                } else {
+                    Log::debug('Game interaction skipped sync (batch threshold not reached)', [
+                        'user_id' => $user->id,
+                        'game_id' => $game->id,
+                        'interaction_id' => $interaction->id,
+                        'type' => $type,
+                        'like_dislike_count' => $likeDislikeCount,
+                        'next_sync_at' => (int)($likeDislikeCount / 5 + 1) * 5
+                    ]);
+                }
+            } else {
+                $this->syncService->syncGameInteraction($interaction);
+                Log::info('Game interaction synced to Neo4j (immediate sync)', [
+                    'user_id' => $user->id,
+                    'game_id' => $game->id,
+                    'interaction_id' => $interaction->id,
+                    'type' => $type
+                ]);
+            }
         } catch (\Exception $e) {
             Log::warning('Failed to sync interaction to Neo4j', [
                 'user_id' => $user->id,
