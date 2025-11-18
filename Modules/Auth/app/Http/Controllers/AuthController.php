@@ -4,11 +4,10 @@ namespace Modules\Auth\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Modules\Auth\Services\AuthService;
 use Modules\Auth\Http\Resources\AuthResource;
+use Modules\Auth\Http\Requests\LoginRequest;
 use Exception;
-use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
@@ -19,18 +18,12 @@ class AuthController extends Controller
         $this->authService = $authService;
     }
 
-    public function login(Request $request): JsonResponse
+    public function login(LoginRequest $request): JsonResponse
     {
         try {
-            $request->validate([
-                'id_token' => 'required|string',
-            ]);
-
-            $result = $this->authService->login($request->all());
+            $result = $this->authService->login($request->validated());
 
             return $this->successResponse(new AuthResource($result));
-        } catch (ValidationException $e) {
-            return $this->validationErrorResponse($e->errors());
         } catch (Exception $e) {
             return $this->unauthorizedResponse($e->getMessage());
         }
@@ -64,5 +57,17 @@ class AuthController extends Controller
         } catch (Exception $e) {
             return $this->unauthorizedResponse($e->getMessage());
         }
+    }
+
+    /**
+     * Health check endpoint - verifies if API is online
+     * No authentication required
+     */
+    public function health(): JsonResponse
+    {
+        return $this->successResponse([
+            'status' => 'online',
+            'timestamp' => now()->toIso8601String(),
+        ], 'API is online');
     }
 }
