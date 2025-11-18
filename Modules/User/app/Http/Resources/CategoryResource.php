@@ -12,6 +12,9 @@ class CategoryResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'preference_weight' => $this->when(isset($this->pivot), function () {
+                return $this->pivot->preference_weight ?? null;
+            }),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
