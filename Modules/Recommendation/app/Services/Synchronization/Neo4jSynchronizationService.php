@@ -30,11 +30,123 @@ class Neo4jSynchronizationService
                 'email' => $user->email,
                 'createdAt' => $user->created_at?->toIso8601String()
             ]);
+            
+            $this->syncUserPreferences($user);
         } catch (\Exception $e) {
             Log::error('Failed to sync user to Neo4j', [
                 'user_id' => $user->id,
                 'error' => $e->getMessage()
             ]);
+        }
+    }
+    
+    /**
+     * Sincroniza apenas as preferências coletadas no onboarding:
+     * - Plataformas (prefer_windows, prefer_mac, prefer_linux)
+     * - Gêneros preferidos (HAS_PREFERRED_GENRE com weight)
+     * - 5 tolerâncias de monetização (tolerance_microtransactions, tolerance_dlc, tolerance_loot_boxes, tolerance_pay_to_win, tolerance_battle_pass)
+     */
+    public function syncUserPreferences(User $user): void
+    {
+        try {
+            $user->load([
+                'preferences',
+                'monetizationPreferences',
+                'preferredGenres' => function ($query) {
+                    $query->withPivot('preference_weight');
+                }
+            ]);
+            
+            $this->syncUserPlatformAndMonetizationPreferences($user);
+            $this->syncUserPreferredGenres($user);
+        } catch (\Exception $e) {
+            Log::error('Failed to sync user preferences to Neo4j', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+    
+    private function syncUserPlatformAndMonetizationPreferences(User $user): void
+    {
+        $preferences = $user->preferences;
+        $monetization = $user->monetizationPreferences;
+        
+        $cypher = "
+            MATCH (u:User {id: \$userId})
+            SET u.prefer_windows = \$preferWindows,
+                u.prefer_mac = \$preferMac,
+                u.prefer_linux = \$preferLinux,
+                u.tolerance_microtransactions = \$toleranceMicrotransactions,
+                u.tolerance_dlc = \$toleranceDlc,
+                u.tolerance_loot_boxes = \$toleranceLootBoxes,
+                u.tolerance_pay_to_win = \$tolerancePayToWin,
+                u.tolerance_battle_pass = \$toleranceBattlePass
+        ";
+        
+        try {
+            $this->connection->executeWriteQuery($cypher, [
+                'userId' => $user->id,
+                'preferWindows' => $preferences?->prefer_windows ?? false,
+                'preferMac' => $preferences?->prefer_mac ?? false,
+                'preferLinux' => $preferences?->prefer_linux ?? false,
+                'toleranceMicrotransactions' => $monetization?->tolerance_microtransactions ?? 5,
+                'toleranceDlc' => $monetization?->tolerance_dlc ?? 5,
+                'toleranceLootBoxes' => $monetization?->tolerance_loot_boxes ?? 5,
+                'tolerancePayToWin' => $monetization?->tolerance_pay_to_win ?? 5,
+                'toleranceBattlePass' => $monetization?->tolerance_battle_pass ?? 5,
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('Failed to sync platform and monetization preferences to Neo4j', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+    
+    private function syncUserPreferredGenres(User $user): void
+    {
+        $cypher = "
+            MATCH (u:User {id: \$userId})-[r:HAS_PREFERRED_GENRE]->(g:Genre)
+            DELETE r
+        ";
+        
+        try {
+            $this->connection->executeWriteQuery($cypher, [
+                'userId' => $user->id
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('Failed to remove old genre preferences from Neo4j', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+        
+        foreach ($user->preferredGenres as $genre) {
+            $weight = $genre->pivot->preference_weight ?? 5;
+            
+            $cypher = "
+                MATCH (u:User {id: \$userId})
+                MERGE (genre:Genre {id: \$genreId})
+                SET genre.name = \$genreName
+                MERGE (u)-[r:HAS_PREFERRED_GENRE]->(genre)
+                SET r.weight = \$weight
+            ";
+            
+            try {
+                $this->connection->executeWriteQuery($cypher, [
+                    'userId' => $user->id,
+                    'genreId' => $genre->id,
+                    'genreName' => $genre->name,
+                    'weight' => $weight
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to sync genre preference to Neo4j', [
+                    'user_id' => $user->id,
+                    'genre_id' => $genre->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
         }
     }
     
@@ -92,6 +204,14 @@ class Neo4jSynchronizationService
             } elseif ($interaction->type === 'dislike') {
                 $this->createDislikedRelationship($interaction);
             }
+            
+            Log::info('Game interaction synced to Neo4j', [
+                'interaction_id' => $interaction->id,
+                'user_id' => $interaction->user_id,
+                'game_id' => $interaction->game_id,
+                'type' => $interaction->type,
+                'score' => $interaction->interaction_score
+            ]);
         } catch (\Exception $e) {
             Log::error('Failed to sync game interaction to Neo4j', [
                 'interaction_id' => $interaction->id,
