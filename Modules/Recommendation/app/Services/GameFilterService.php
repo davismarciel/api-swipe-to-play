@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Modules\Game\Models\Game;
 use Modules\User\Models\User;
 use Modules\Recommendation\Contracts\GameFilterServiceInterface;
+use Illuminate\Support\Facades\DB;
 
 class GameFilterService implements GameFilterServiceInterface
 {
@@ -31,28 +32,34 @@ class GameFilterService implements GameFilterServiceInterface
             return;
         }
 
-        // Check if any platform preferences are set
         $hasPlatformPreference = $preferences->prefer_windows 
             || $preferences->prefer_mac 
             || $preferences->prefer_linux;
 
-        // Skip platform filtering if no platforms are preferred
         if (!$hasPlatformPreference) {
             return;
         }
 
-        $query->whereHas('platform', function ($q) use ($preferences) {
-            $q->where(function ($platformQuery) use ($preferences) {
-                if ($preferences->prefer_windows) {
-                    $platformQuery->orWhere('windows', true);
-                }
-                if ($preferences->prefer_mac) {
-                    $platformQuery->orWhere('mac', true);
-                }
-                if ($preferences->prefer_linux) {
-                    $platformQuery->orWhere('linux', true);
-                }
-            });
+        $platformConditions = [];
+        if ($preferences->prefer_windows) {
+            $platformConditions[] = 'CAST(windows AS BOOLEAN) = true';
+        }
+        if ($preferences->prefer_mac) {
+            $platformConditions[] = 'CAST(mac AS BOOLEAN) = true';
+        }
+        if ($preferences->prefer_linux) {
+            $platformConditions[] = 'CAST(linux AS BOOLEAN) = true';
+        }
+
+        if (empty($platformConditions)) {
+            return;
+        }
+
+        $query->whereExists(function ($subquery) use ($platformConditions) {
+            $subquery->select(DB::raw(1))
+                ->from('game_platforms')
+                ->whereColumn('game_platforms.game_id', 'games.id')
+                ->whereRaw('(' . implode(' OR ', $platformConditions) . ')');
         });
     }
 
@@ -115,10 +122,11 @@ class GameFilterService implements GameFilterServiceInterface
             return $query;
         }
 
-        return $query->leftJoin('game_genre', 'games.id', '=', 'game_genre.game_id')
-            ->whereIn('game_genre.genre_id', $preferredGenreIds)
-            ->select('games.*')
-            ->distinct();
+        return $query->whereIn('games.id', function ($subquery) use ($preferredGenreIds) {
+            $subquery->select('game_id')
+                ->from('game_genre')
+                ->whereIn('genre_id', $preferredGenreIds);
+        });
     }
 
     public function applyCategoryBoost(User $user, Builder $query): Builder
@@ -129,9 +137,10 @@ class GameFilterService implements GameFilterServiceInterface
             return $query;
         }
 
-        return $query->leftJoin('game_category', 'games.id', '=', 'game_category.game_id')
-            ->whereIn('game_category.category_id', $preferredCategoryIds)
-            ->select('games.*')
-            ->distinct();
+        return $query->whereIn('games.id', function ($subquery) use ($preferredCategoryIds) {
+            $subquery->select('game_id')
+                ->from('game_category')
+                ->whereIn('category_id', $preferredCategoryIds);
+        });
     }
 }

@@ -6,22 +6,22 @@ use Illuminate\Database\Eloquent\Builder;
 use Modules\User\Models\User;
 
 /**
- * Interface para o serviço de filtros de jogos
+ * Interface for the game filter service
  */
 interface GameFilterServiceInterface
 {
     /**
-     * Filtra jogos baseado nas preferências do usuário
+     * Filters games based on the user's preferences
      */
     public function filterGames(User $user, ?Builder $query = null): Builder;
 
     /**
-     * Aplica boost por gêneros preferidos
+     * Applies boost by preferred genres
      */
     public function applyGenreBoost(User $user, Builder $query): Builder;
 
     /**
-     * Aplica boost por categorias preferidas
+     * Applies boost by preferred categories
      */
     public function applyCategoryBoost(User $user, Builder $query): Builder;
 }
