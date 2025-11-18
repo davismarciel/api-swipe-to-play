@@ -17,15 +17,31 @@ class Neo4jRecommendationService implements Neo4jRecommendationServiceInterface
     
     public function getRecommendations(User $user, int $limit = 10): Collection
     {
-        $cypher = "
-            MATCH (u:User {id: \$userId})
-            MATCH (u)-[:LIKED|FAVORITED]->(g1:Game)<-[:SIMILAR_TO]-(g2:Game)
-            WHERE NOT (u)-[:LIKED|DISLIKED|SKIPPED]->(g2)
-            WITH g2, count(DISTINCT g1) as similarityScore
-            ORDER BY similarityScore DESC
-            LIMIT \$limit
-            RETURN g2.id as game_id, similarityScore as score
-        ";
+        $hasPreferredGenres = $this->userHasPreferredGenres($user->id);
+        
+        if ($hasPreferredGenres) {
+            $cypher = "
+                MATCH (u:User {id: \$userId})-[:HAS_PREFERRED_GENRE]->(prefGenre:Genre)<-[:HAS_GENRE]-(g2:Game)
+                WHERE NOT (u)-[:LIKED|DISLIKED|SKIPPED]->(g2)
+                OPTIONAL MATCH (u)-[:LIKED|FAVORITED]->(g1:Game)<-[:SIMILAR_TO]-(g2)
+                WITH g2, 
+                     count(DISTINCT g1) as similarityScore,
+                     count(DISTINCT prefGenre) as genreMatchCount
+                ORDER BY genreMatchCount DESC, similarityScore DESC
+                LIMIT \$limit
+                RETURN g2.id as game_id, similarityScore as score
+            ";
+        } else {
+            $cypher = "
+                MATCH (u:User {id: \$userId})
+                MATCH (u)-[:LIKED|FAVORITED]->(g1:Game)<-[:SIMILAR_TO]-(g2:Game)
+                WHERE NOT (u)-[:LIKED|DISLIKED|SKIPPED]->(g2)
+                WITH g2, count(DISTINCT g1) as similarityScore
+                ORDER BY similarityScore DESC
+                LIMIT \$limit
+                RETURN g2.id as game_id, similarityScore as score
+            ";
+        }
         
         try {
             $results = $this->connection->executeReadQuery($cypher, [
@@ -58,6 +74,32 @@ class Neo4jRecommendationService implements Neo4jRecommendationServiceInterface
             ]);
             
             return collect();
+        }
+    }
+    
+    /**
+     * Verifica se o usuário tem gêneros preferidos no Neo4j
+     */
+    private function userHasPreferredGenres(int $userId): bool
+    {
+        $cypher = "
+            MATCH (u:User {id: \$userId})-[:HAS_PREFERRED_GENRE]->(g:Genre)
+            RETURN count(g) as count
+        ";
+        
+        try {
+            $results = $this->connection->executeReadQuery($cypher, [
+                'userId' => $userId
+            ]);
+            
+            $count = $results[0]['count'] ?? 0;
+            return $count > 0;
+        } catch (\Exception $e) {
+            Log::warning('Failed to check if user has preferred genres', [
+                'user_id' => $userId,
+                'error' => $e->getMessage()
+            ]);
+            return false;
         }
     }
     
