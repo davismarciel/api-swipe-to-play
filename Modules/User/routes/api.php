@@ -9,6 +9,7 @@ use Modules\User\Http\Controllers\Api\OnboardingController;
 Route::middleware(['force.json', 'auth:api'])->group(function () {
 
     Route::prefix('onboarding')->group(function () {
+        Route::get('/status', [OnboardingController::class, 'status'])->name('onboarding.status');
         Route::post('/complete', [OnboardingController::class, 'complete'])->name('onboarding.complete');
     });
 
