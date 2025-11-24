@@ -121,5 +121,45 @@ class OnboardingController extends Controller
             'preferred_categories' => CategoryResource::collection($user->preferredCategories),
         ], 'Onboarding completed successfully');
     }
+
+    /**
+     * Check onboarding status for the authenticated user
+     */
+    public function status(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return $this->errorResponse('Unauthenticated', 401);
+        }
+
+        $completed = !is_null($user->onboarding_completed_at);
+        
+        $hasPreferences = $user->preferences()->exists();
+        $hasMonetization = $user->monetizationPreferences()->exists();
+        $genresCount = $user->preferredGenres()->count();
+        $categoriesCount = $user->preferredCategories()->count();
+
+        if (!$completed) {
+            $hasAnyPreferences = $hasPreferences || 
+                                 $hasMonetization ||
+                                 $genresCount > 0 ||
+                                 $categoriesCount > 0;
+            
+            if ($hasAnyPreferences) {
+                $user->onboarding_completed_at = now();
+                $user->save();
+                $completed = true;
+            }
+        }
+
+        return $this->successResponse([
+            'completed' => $completed,
+            'has_preferences' => $hasPreferences,
+            'has_monetization' => $hasMonetization,
+            'genres_count' => $genresCount,
+            'categories_count' => $categoriesCount,
+        ]);
+    }
 }
 
