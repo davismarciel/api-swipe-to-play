@@ -25,18 +25,31 @@ class EnsureOnboardingCompleted
         }
 
         if ($request->routeIs('onboarding.complete') || 
+            $request->routeIs('onboarding.status') ||
             $request->is('api/onboarding/complete') ||
+            $request->is('api/onboarding/status') ||
             $request->is('api/v1/auth/login') ||
             $request->is('api/v1/auth/health')) {
             return $next($request);
         }
 
         if (!$user->onboarding_completed_at) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Onboarding not completed. Please complete onboarding to access this resource.',
-                'requires_onboarding' => true
-            ], 403);
+            $hasPreferences = $user->preferences()->exists() || 
+                             $user->monetizationPreferences()->exists() ||
+                             $user->preferredGenres()->exists() ||
+                             $user->preferredCategories()->exists();
+            
+            if ($hasPreferences) {
+                $user->onboarding_completed_at = now();
+                $user->save();
+                $user->refresh(); 
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Onboarding not completed. Please complete onboarding to access this resource.',
+                    'requires_onboarding' => true
+                ], 403);
+            }
         }
 
         return $next($request);
